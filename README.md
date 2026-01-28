@@ -117,7 +117,9 @@ uv run git+https://github.com/<owner>/<repo>.git#rag-server
 uv run git+https://github.com/<owner>/<repo>.git#ingest-document
 ```
 
-You can also use `--with` to install the package first and then run its console script. When using `--with`, add `--` before the script name to separate `uv`'s options from the command. Example:
+You can also use `--with` to install the package first and then run its console script. When using `--with`, add `--` before the script name to separate `uv`'s options from the command. When running with `--with` or using the local path, `uv` will run commands from your current working directory and the code will prefer the `.env` file in that directory — so project-specific environment values (like `OPENAI_API_KEY` or `MILVUS_DB`) will be picked up automatically.
+
+Example:
 
 ```bash
 uv run --with git+https://github.com/<owner>/<repo>.git -- rag-server --openai-api-key "$OPENAI_API_KEY" --port 8000

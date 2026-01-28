@@ -13,12 +13,18 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from typing import Optional, List, Literal
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
 # Load environment variables at import time so .env is read even when the
 # module is imported by an ASGI server (for example, `uvicorn rag_server:app`).
-# This ensures keys like OPENAI_API_KEY are available before startup.
-load_dotenv()
+# Prefer the `.env` in the current working directory (where the user invoked
+# `uv run`) so project-specific environment settings are picked up. Fall back
+# to the default behavior if none is found.
+_env_path = find_dotenv(usecwd=True)
+if _env_path:
+    load_dotenv(_env_path)
+else:
+    load_dotenv()
 
 import logging
 
@@ -225,11 +231,32 @@ def initialize_rag_system(args):
     global qa_chain, vectorstore
     
     print("Initializing RAG system...")
-    
+
+    # Ensure .env from current working directory is loaded at runtime when
+    # running via tools like `uv run --with ...` since import-time loading may
+    # not always pick up the project .env in every execution environment.
+    _env_path_runtime = find_dotenv(usecwd=True)
+    if _env_path_runtime:
+        load_dotenv(_env_path_runtime, override=False)
+
+    # Debug: reveal whether we picked up .env paths and whether the key is present
+    try:
+        logger.debug("import-time .env path=%s; runtime .env path=%s; OPENAI_API_KEY in env=%s", _env_path if '_env_path' in globals() else None, _env_path_runtime, ("OPENAI_API_KEY" in os.environ))
+    except Exception:
+        pass
+
+    # If the key is still not in the environment, try reading it directly from the
+    # project's .env file (useful when load_dotenv didn't modify os.environ for any reason).
+    if "OPENAI_API_KEY" not in os.environ and not args.openai_api_key:
+        from dotenv import dotenv_values
+        values = dotenv_values(_env_path_runtime or '')
+        if values and values.get("OPENAI_API_KEY"):
+            os.environ["OPENAI_API_KEY"] = values.get("OPENAI_API_KEY")
+
     # Validate OpenAI API key
     if args.openai_api_key:
         os.environ["OPENAI_API_KEY"] = args.openai_api_key
-    
+
     if "OPENAI_API_KEY" not in os.environ:
         raise ValueError(
             "OpenAI API key must be provided via --openai-api-key or OPENAI_API_KEY env var"
@@ -526,11 +553,22 @@ def main():
     """Main entry point for the application."""
     import uvicorn
     
-    # Load environment variables from .env file
-    load_dotenv()
-    
+    # Load environment variables from the project's .env (prefer CWD),
+    # ensuring CLI defaults (parse_args) see project .env when running via `uv run`.
+    _env_path_main = find_dotenv(usecwd=True)
+    if _env_path_main:
+        # Force-load project .env so that running via `uv run --with ...` picks up
+        # project environment values (override existing env vars if necessary).
+        print(f"LOADING .env from project path: {_env_path_main}")
+        load_dotenv(_env_path_main, override=True)
+    else:
+        print("No project .env found via find_dotenv(); falling back to default load_dotenv()")
+        load_dotenv()
+
     # Parse command line arguments
     args = parse_args()
+    print(f"CLI args: openai_api_key provided={bool(args.openai_api_key)}; OPENAI_API_KEY in env={'OPENAI_API_KEY' in os.environ}")
+    logger.debug("Parsed CLI args; openai_api_key provided=%s; OPENAI_API_KEY in env=%s", bool(args.openai_api_key), ("OPENAI_API_KEY" in os.environ))
     
     # Store args in app state so they're accessible in lifespan
     app.state.args = args
