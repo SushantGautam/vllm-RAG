@@ -366,10 +366,7 @@ Answer:"""
     )
 
     # Expose some initialized components to module-level globals for use per-request
-    global retriever_obj, PROMPT_TEMPLATE, llm, base_qa
-    retriever_obj = retriever
-    PROMPT_TEMPLATE = PROMPT
-    llm = None
+    global base_qa
     base_qa = base_pipeline
     print("RAG system initialized successfully!")
 
