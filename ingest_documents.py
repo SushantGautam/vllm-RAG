@@ -7,10 +7,16 @@ Milvus database. Run this before starting the server to index your documents.
 
 import argparse
 import os
-from dotenv import load_dotenv, dotenv_values
+from dotenv import load_dotenv, dotenv_values, find_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_openai import OpenAIEmbeddings
+
+_env_path = find_dotenv(usecwd=True)
+if _env_path:
+    load_dotenv(_env_path)
+else:
+    load_dotenv()
 
 
 def parse_args():
@@ -92,8 +98,11 @@ def validate_env_vars(required_vars):
     exists, ensure those variables are present in the file. Otherwise, ensure
     they are set in the environment.
     """
-    env_path = ".env"
-    if os.path.exists(env_path):
+    # Prefer the `.env` in the current working directory (where the user invoked
+    # `uv run`) so project-specific environment settings are picked up. Fall back
+    # to the environment if none is found.
+    env_path = find_dotenv(usecwd=True)
+    if env_path and os.path.exists(env_path):
         env_vals = dotenv_values(env_path)
         missing = [v for v in required_vars if not env_vals.get(v)]
         if missing:
@@ -216,7 +225,6 @@ async def ingest_documents(args):
 def main():
     """Main entry point."""
     # Load environment variables from .env file (if present)
-    load_dotenv()
     
     # Validate required env vars are declared in .env or the environment
     try:
