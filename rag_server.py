@@ -2,7 +2,7 @@
 FastAPI server for LangChain RAG with Milvus vector store.
 
 This server initializes document loading, splitting, Milvus vector store,
-retriever, prompt, and ChatOpenAI once at startup. It exposes an OpenAI-compatible
+retriever, prompt, and ChatOpenAI oncerag at startup. It exposes an OpenAI-compatible
 POST /v1/chat/completions endpoint for question answering and supports parallel requests safely.
 """
 
@@ -220,6 +220,23 @@ def parse_args():
     )
     return parser.parse_args()
 
+
+def validate_env_vars(required_vars):
+    """
+    Validate that required environment variables are declared. If a .env file
+    exists, ensure those variables are present in the file. Otherwise, ensure
+    they are set in the environment.
+    """
+    env_path = ".env"
+    if os.path.exists(env_path):
+        env_vals = dotenv_values(env_path)
+        missing = [v for v in required_vars if not env_vals.get(v)]
+        if missing:
+            raise ValueError(f".env file is missing required variables: {', '.join(missing)}")
+    else:
+        missing = [v for v in required_vars if v not in os.environ]
+        if missing:
+            raise ValueError(f"Required environment variables not set: {', '.join(missing)}. Create a .env file or set them in the environment.")
 
 def initialize_rag_system(args):
     """
@@ -568,7 +585,14 @@ def main():
     # Parse command line arguments
     args = parse_args()
     logger.debug("Parsed CLI args; openai_api_key provided=%s; OPENAI_API_KEY in env=%s", bool(args.openai_api_key), ("OPENAI_API_KEY" in os.environ))
-    
+
+    # Validate required environment variables (allow CLI to satisfy requirement)
+    try:
+        validate_env_vars(["OPENAI_API_KEY"], args=args)
+    except Exception as e:
+        print(f"\n✗ Environment validation failed: {e}")
+        raise
+
     # Store args in app state so they're accessible in lifespan
     app.state.args = args
     
