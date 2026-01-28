@@ -365,7 +365,7 @@ Answer:"""
     print(f"Initializing ChatOpenAI with model {args.model_name}...")
     llm_kwargs = {
         "model_name": args.model_name,
-        "temperature": 0
+        # "temperature": 0
     }
     
     # Set custom base URL if provided
