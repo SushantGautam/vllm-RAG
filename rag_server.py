@@ -567,7 +567,6 @@ def main():
 
     # Parse command line arguments
     args = parse_args()
-    print(f"CLI args: openai_api_key provided={bool(args.openai_api_key)}; OPENAI_API_KEY in env={'OPENAI_API_KEY' in os.environ}")
     logger.debug("Parsed CLI args; openai_api_key provided=%s; OPENAI_API_KEY in env=%s", bool(args.openai_api_key), ("OPENAI_API_KEY" in os.environ))
     
     # Store args in app state so they're accessible in lifespan
