@@ -202,12 +202,6 @@ def parse_args():
         help="API secret used to secure this server's endpoints (default: reads from API_SECRET or OPENAI_API_SECRET env var)",
     )
     parser.add_argument(
-        "--model-name",
-        type=str,
-        default=None,
-        help="OpenAI model name to use as a server-wide default (omit to require 'model' per request)",
-    )
-    parser.add_argument(
         "--embedding-api-key",
         type=str,
         default=os.getenv("EMBEDDING_API_KEY", os.getenv("OPENAI_EMBEDDING_API_KEY", os.getenv("OPENAI_API_KEY", None))),
@@ -371,29 +365,12 @@ Answer:"""
         | PROMPT
     )
 
-    llm_instance = None
-    # If a server-wide default model was provided at startup, bind it now.
-    if getattr(args, "model_name", None):
-        print(f"Initializing ChatOpenAI with default model {args.model_name}...")
-        llm_kwargs = {
-            "model_name": args.model_name,
-            # "temperature": 0
-        }
-        if args.openai_base_url:
-            llm_kwargs["base_url"] = args.openai_base_url
-        llm_instance = ChatOpenAI(**llm_kwargs)
-        qa_chain = base_pipeline | llm_instance
-    else:
-        print("No default model configured; requests must include a 'model' field to specify which model to use.")
-        qa_chain = None
-
     # Expose some initialized components to module-level globals for use per-request
     global retriever_obj, PROMPT_TEMPLATE, llm, base_qa
     retriever_obj = retriever
     PROMPT_TEMPLATE = PROMPT
-    llm = llm_instance
+    llm = None
     base_qa = base_pipeline
-    
     print("RAG system initialized successfully!")
 
 
@@ -492,36 +469,23 @@ async def chat_completions(request: ChatCompletionRequest, fastapi_request: Requ
     question = user_messages[-1].content.strip()
     if not question:
         raise HTTPException(status_code=400, detail="User message content cannot be empty")
-    
-    # Prepare a place to store any raw response (from the chain or a forwarded OpenAI-compatible endpoint)
-    raw_response = None
 
     try:
         # Run the synchronous pipeline in a thread pool and return OpenAI-compatible dict directly.
         loop = asyncio.get_event_loop()
-        if qa_chain is not None:
-            # Server has a default model configured; use the prebuilt pipeline
-            result = await loop.run_in_executor(
-                None,
-                qa_chain.invoke,
-                question
-            )
-        else:
-            # No server-default model: require a model be specified per-request
-            model_id = request.model
-            if not model_id:
-                raise HTTPException(status_code=400, detail="No model specified. Provide 'model' in request or start server with --model-name to use a default.")
-            llm_kwargs = {"model_name": model_id}
-            if getattr(app.state.args, "openai_base_url", None):
-                llm_kwargs["base_url"] = app.state.args.openai_base_url
-            llm_instance_req = ChatOpenAI(**llm_kwargs)
-            temp_chain = base_qa | llm_instance_req
-            result = await loop.run_in_executor(
-                None,
-                temp_chain.invoke,
-                question
-            )
-
+        model_id = request.model
+        if not model_id:
+            raise HTTPException(status_code=400, detail="No model specified. Provide 'model' in request or start server with --model-name to use a default.")
+        llm_kwargs = {"model_name": model_id}
+        if getattr(app.state.args, "openai_base_url", None):
+            llm_kwargs["base_url"] = app.state.args.openai_base_url
+        llm_instance_req = ChatOpenAI(**llm_kwargs)
+        temp_chain = base_qa | llm_instance_req
+        result = await loop.run_in_executor(
+            None,
+            temp_chain.invoke,
+            question
+        )
         result = ai_message_to_chat_completion(result)  # openai format dict.
         # Ensure the returned model name is set sensibly when missing
         if isinstance(result, dict) and (not result.get("model") or result.get("model") == "unknown"):
