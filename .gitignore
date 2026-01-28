@@ -47,3 +47,4 @@ milvus_demo.db
 # Test documents
 test_documents/
 *.lock
+*.pid
