@@ -1,0 +1,18 @@
+Milvus is an open-source vector database built to power embedding similarity search and AI applications.
+
+Key features of Milvus:
+- Blazing fast search: Trillion-scale vector search with millisecond response time
+- Simplified unstructured data management: Manage data in various formats including images, videos, and text
+- Hybrid search capabilities: Combine scalar filtering with vector similarity search
+- Distributed and highly scalable: Scale horizontally with minimal effort
+- Rich ecosystem: Integrate with popular AI frameworks and tools
+
+Milvus is built for vector similarity search and can be used for:
+- Image similarity search
+- Video similarity search
+- Recommendation systems
+- Semantic search
+- Question answering systems
+- And many more AI-powered applications
+
+Milvus supports multiple index types including IVF, HNSW, and more, allowing you to choose the best index for your specific use case.

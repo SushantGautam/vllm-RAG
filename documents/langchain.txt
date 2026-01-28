@@ -1,0 +1,16 @@
+LangChain is a framework for developing applications powered by language models. It enables applications that are:
+- Data-aware: connect a language model to other sources of data
+- Agentic: allow a language model to interact with its environment
+
+The main value props of LangChain are:
+1. Components: composable tools and integrations for working with language models
+2. Off-the-shelf chains: built-in assemblages of components for higher-level tasks
+3. Easy to extend: easily extend existing chains or create new ones
+
+LangChain provides modules for:
+- Models: integrate with various LLM providers
+- Prompts: manage and optimize prompts
+- Chains: combine multiple components
+- Indexes: prepare and query data
+- Memory: persist state between calls
+- Agents: dynamically choose which tools to use

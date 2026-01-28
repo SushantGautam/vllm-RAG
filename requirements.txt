@@ -1,0 +1,9 @@
+fastapi==0.109.1
+uvicorn[standard]==0.27.0
+langchain==0.3.27
+langchain-openai==0.2.14
+langchain-community==0.3.27
+pymilvus==2.3.5
+milvus-lite==2.3.5
+python-dotenv==1.0.0
+pydantic==2.6.0
