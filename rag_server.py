@@ -14,6 +14,12 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Optional, List, Literal
 from dotenv import load_dotenv
+
+# Load environment variables at import time so .env is read even when the
+# module is imported by an ASGI server (for example, `uvicorn rag_server:app`).
+# This ensures keys like OPENAI_API_KEY are available before startup.
+load_dotenv()
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -139,67 +145,72 @@ def _extract_assistant_text(obj) -> Optional[str]:
 
 
 def parse_args():
-    """Parse command line arguments."""
+    """Parse command line arguments.
+
+    Uses simple environment-variable defaults (loaded from `.env` at import-time).
+    CLI flags override environment variables. Follows same style as `ingest_documents.py`.
+    """
+
     parser = argparse.ArgumentParser(description="FastAPI server for LangChain RAG")
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
-        help="Host to bind the server to (default: 0.0.0.0)",
+        default=os.getenv("HOST", os.getenv("APP_HOST", "0.0.0.0")),
+        help="Host to bind the server to (default: 0.0.0.0 or from HOST/APP_HOST env var)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=8000,
-        help="Port to bind the server to (default: 8000)",
+        default=int(os.getenv("PORT", os.getenv("APP_PORT", "8000"))),
+        help="Port to bind the server to (default: 8000 or from PORT/APP_PORT env var)",
     )
     parser.add_argument(
         "--milvus-db",
         type=str,
-        default="./milvus_demo.db",
-        help="Path to local Milvus database file (default: ./milvus_demo.db)",
+        default=os.getenv("MILVUS_DB", "./milvus_demo.db"),
+        help="Path to local Milvus database file (default: ./milvus_demo.db or MILVUS_DB env var)",
     )
     parser.add_argument(
         "--collection-name",
         type=str,
-        default="rag_collection",
-        help="Milvus collection name (default: rag_collection)",
+        default=os.getenv("MILVUS_COLLECTION_NAME", os.getenv("COLLECTION_NAME", "rag_collection")),
+        help="Milvus collection name (default: rag_collection or MILVUS_COLLECTION_NAME env var)",
     )
     parser.add_argument(
         "--openai-api-key",
         type=str,
-        default=None,
+        default=os.getenv("OPENAI_API_KEY", None),
         help="OpenAI API key for LLM (default: reads from OPENAI_API_KEY env var)",
     )
     parser.add_argument(
         "--openai-base-url",
         type=str,
-        default=None,
-        help="OpenAI-compatible base URL for LLM (default: uses OpenAI's default)",
+        default=os.getenv("OPENAI_BASE_URL", os.getenv("OPENAI_API_BASE", None)),
+        help="OpenAI-compatible base URL for LLM (default: uses OpenAI's default or OPENAI_BASE_URL/OPENAI_API_BASE env var)",
     )
     parser.add_argument(
         "--model-name",
         type=str,
-        default="gpt-3.5-turbo",
-        help="OpenAI model name (default: gpt-3.5-turbo)",
+        default=os.getenv("OPENAI_MODEL_NAME", os.getenv("MODEL_NAME", "gpt-3.5-turbo")),
+        help="OpenAI model name (default: gpt-3.5-turbo or OPENAI_MODEL_NAME/MODEL_NAME env var)",
     )
     parser.add_argument(
         "--embedding-api-key",
         type=str,
-        default=None,
+        default=os.getenv("EMBEDDING_API_KEY", os.getenv("OPENAI_EMBEDDING_API_KEY", os.getenv("OPENAI_API_KEY", None))),
         help="API key for embedding model (default: uses same as --openai-api-key or OPENAI_API_KEY env var)",
     )
     parser.add_argument(
         "--embedding-base-url",
         type=str,
-        default=None,
-        help="OpenAI-compatible base URL for embedding model (default: uses OpenAI's default)",
+        default=os.getenv("EMBEDDING_BASE_URL", None),
+        help="OpenAI-compatible base URL for embedding model (default: uses OpenAI's default or EMBEDDING_BASE_URL env var)",
     )
     parser.add_argument(
         "--embedding-model-name",
         type=str,
-        default="text-embedding-ada-002",
-        help="Embedding model name (default: text-embedding-ada-002)",
+        default=os.getenv("EMBEDDING_MODEL_NAME", "text-embedding-ada-002"),
+        help="Embedding model name (default: text-embedding-ada-002 or EMBEDDING_MODEL_NAME env var)",
     )
     return parser.parse_args()
 
@@ -230,12 +241,11 @@ def initialize_rag_system(args):
     
     # Set embedding API key (defaults to main API key if not specified)
     if args.embedding_api_key:
-        embedding_kwargs["openai_api_key"] = args.embedding_api_key
+        embedding_kwargs["openai_api_key"] = args.embedding_api_key or os.environ["OPENAI_API_KEY"]
     
     # Set embedding base URL if provided
     if args.embedding_base_url:
         embedding_kwargs["base_url"] = args.embedding_base_url
-    
     embeddings = OpenAIEmbeddings(**embedding_kwargs)
     
     # Connect to existing Milvus vector store
