@@ -64,6 +64,21 @@ uvicorn rag_server:app --host 0.0.0.0 --port 8000
 - Health check: `curl http://localhost:8000/health`
 - Chat completions POST: `http://localhost:8000/v1/chat/completions`
 
+**Example curl (Chat Completions):**
+
+```bash
+curl -s -X POST "http://localhost:8000/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_SECRET" \
+  -d '{
+    "model": "gpt-3.5-turbo",
+    "messages": [{"role":"user","content":"Give a one-sentence summary of FastAPI RAG."}],
+    "max_tokens": 100
+  }'
+```
+
+> Note: If you set `API_SECRET` in `.env`, include it in the `Authorization` header as shown. For local testing without an `API_SECRET`, you can omit the header.
+
 ---
 
 ## Run quickly with Astral `uv` ⚡
