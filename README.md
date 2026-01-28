@@ -32,11 +32,8 @@ If the server starts, test with:
 curl -s -X POST "http://localhost:8000/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer no_need" \
-  -d '{
-    "model": "gpt-3.5-turbo",
-    "messages": [{"role":"user","content":"Give a one-sentence summary of FastAPI RAG."}],
-    "max_tokens": 100
-  }'
+  -d '{"model": "gpt-3.5-turbo",
+    "messages": [{"role":"user","content":"Give a one-sentence summary of FastAPI RAG."}]}'
 ```
 
 ---
