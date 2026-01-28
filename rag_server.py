@@ -330,7 +330,7 @@ def initialize_rag_system(args):
         info = f" (checked: {', '.join(attempts)})" if attempts else ""
         raise ValueError(
             f"Milvus database not found at {args.milvus_db}{info}. "
-            f"Please run 'python ingest_documents.py' in the project root to create and populate the database, or set --milvus-db or MILVUS_DB env var to the correct path."
+            f"Please run 'ingest_documents' in the project root to create and populate the database, or set --milvus-db or MILVUS_DB env var to the correct path."
         )
 
     vectorstore = Milvus(

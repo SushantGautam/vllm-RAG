@@ -150,7 +150,7 @@ async def ingest_documents(args):
     
     if not documents:
         print(f"\n⚠ No documents found in {os.path.abspath(args.documents_path)} matching {args.glob_pattern}")
-        print("→ Add document files (e.g., .txt) to this directory before running `python ingest_documents.py`.")
+        print("→ Add document files (e.g., .txt) to this directory before running `ingest_documents`.")
         return
     
     print(f"✓ Loaded {len(documents)} document(s)")
