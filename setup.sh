@@ -14,16 +14,6 @@ python3 --version || { echo "Error: Python 3 not found. Please install Python 3.
 echo "✓ Python 3 found"
 echo
 
-# Check Docker
-echo "Checking Docker..."
-if command -v docker &> /dev/null; then
-    echo "✓ Docker found"
-else
-    echo "⚠ Docker not found. You'll need Docker to run Milvus."
-    echo "  Visit: https://docs.docker.com/get-docker/"
-fi
-echo
-
 # Install Python dependencies
 echo "Installing Python dependencies..."
 pip install -r requirements.txt
@@ -50,18 +40,6 @@ else
 fi
 echo
 
-# Start Milvus
-read -p "Do you want to start Milvus with Docker Compose? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "Starting Milvus..."
-    docker-compose up -d
-    echo "✓ Milvus started"
-    echo "  Waiting for Milvus to be ready..."
-    sleep 10
-fi
-echo
-
 echo "========================================"
 echo "Setup Complete!"
 echo "========================================"
@@ -74,4 +52,7 @@ echo "  python rag_server.py --host 0.0.0.0 --port 8000"
 echo
 echo "Interactive API docs will be available at:"
 echo "  http://localhost:8000/docs"
+echo
+echo "Note: The server will create a local Milvus database"
+echo "      file (milvus_demo.db) automatically."
 echo

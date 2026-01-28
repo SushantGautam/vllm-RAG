@@ -20,6 +20,7 @@ from langchain_community.vectorstores import Milvus
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
+from pymilvus import MilvusClient
 
 
 # Global variables to store initialized components
@@ -59,16 +60,10 @@ def parse_args():
         help="Path to directory containing documents (default: ./documents)",
     )
     parser.add_argument(
-        "--milvus-host",
+        "--milvus-db",
         type=str,
-        default="localhost",
-        help="Milvus host (default: localhost)",
-    )
-    parser.add_argument(
-        "--milvus-port",
-        type=int,
-        default=19530,
-        help="Milvus port (default: 19530)",
+        default="./milvus_demo.db",
+        help="Path to local Milvus database file (default: ./milvus_demo.db)",
     )
     parser.add_argument(
         "--collection-name",
@@ -112,10 +107,11 @@ def initialize_rag_system(args):
     
     print("Initializing RAG system...")
     
-    # Set OpenAI API key
+    # Validate OpenAI API key
     if args.openai_api_key:
         os.environ["OPENAI_API_KEY"] = args.openai_api_key
-    elif "OPENAI_API_KEY" not in os.environ:
+    
+    if "OPENAI_API_KEY" not in os.environ:
         raise ValueError(
             "OpenAI API key must be provided via --openai-api-key or OPENAI_API_KEY env var"
         )
@@ -151,19 +147,15 @@ def initialize_rag_system(args):
     print("Initializing OpenAI embeddings...")
     embeddings = OpenAIEmbeddings()
     
-    # Initialize Milvus vector store
-    print(f"Connecting to Milvus at {args.milvus_host}:{args.milvus_port}...")
-    connection_args = {
-        "host": args.milvus_host,
-        "port": args.milvus_port,
-    }
+    # Initialize local Milvus vector store
+    print(f"Initializing local Milvus database at {args.milvus_db}...")
     
     if splits:
         vectorstore = Milvus.from_documents(
             documents=splits,
             embedding=embeddings,
             collection_name=args.collection_name,
-            connection_args=connection_args,
+            connection_args={"uri": args.milvus_db},
         )
         print("Vector store created and populated")
     else:
@@ -171,7 +163,7 @@ def initialize_rag_system(args):
         vectorstore = Milvus(
             embedding_function=embeddings,
             collection_name=args.collection_name,
-            connection_args=connection_args,
+            connection_args={"uri": args.milvus_db},
         )
         print("Empty vector store created")
     
@@ -219,6 +211,7 @@ async def lifespan(app: FastAPI):
     global vectorstore
     if vectorstore:
         print("Cleaning up vector store...")
+        # Milvus connections are cleaned up automatically when the process exits
 
 
 # Create FastAPI app with lifespan

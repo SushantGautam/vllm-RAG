@@ -41,6 +41,8 @@ venv/
 
 # Milvus data
 milvus_data/
+milvus_demo.db
+*.db
 
 # Test documents
 test_documents/

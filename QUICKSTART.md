@@ -3,8 +3,9 @@
 ## Prerequisites
 
 - Python 3.7+
-- Docker (for Milvus)
 - OpenAI API Key
+
+**No Docker needed!** The application uses a local file-based Milvus database.
 
 ## Setup Steps
 
@@ -14,21 +15,7 @@
 pip install -r requirements.txt
 ```
 
-### 2. Start Milvus
-
-Using Docker Compose:
-```bash
-docker-compose up -d
-```
-
-Or using a simple Docker command:
-```bash
-docker run -d --name milvus-standalone \
-  -p 19530:19530 -p 9091:9091 \
-  milvusdb/milvus:latest
-```
-
-### 3. Set OpenAI API Key
+### 2. Set OpenAI API Key
 
 ```bash
 export OPENAI_API_KEY="your-api-key-here"
@@ -40,15 +27,20 @@ cp .env.example .env
 # Edit .env and add your API key
 ```
 
-### 4. Start the Server
+### 3. Start the Server
 
 ```bash
 python rag_server.py
 ```
 
-The server will start on http://localhost:8000
+The server will:
+- Load documents from the `./documents` directory
+- Create a local Milvus database file (`milvus_demo.db`)
+- Start on http://localhost:8000
 
-### 5. Test the Server
+That's it! No external services or Docker required.
+
+### 4. Test the Server
 
 #### Using the web browser:
 Visit http://localhost:8000/docs for interactive API documentation
@@ -81,8 +73,7 @@ python rag_server.py \
   --host 0.0.0.0 \
   --port 8000 \
   --documents-path ./documents \
-  --milvus-host localhost \
-  --milvus-port 19530 \
+  --milvus-db ./milvus_demo.db \
   --model-name gpt-3.5-turbo
 ```
 
@@ -96,10 +87,6 @@ See `python rag_server.py --help` for all options.
 
 ## Troubleshooting
 
-### Milvus Connection Error
-- Make sure Milvus is running: `docker ps | grep milvus`
-- Check Milvus logs: `docker logs milvus-standalone`
-
 ### OpenAI API Error
 - Verify your API key is set correctly
 - Check your OpenAI account has credits
@@ -107,6 +94,10 @@ See `python rag_server.py --help` for all options.
 ### Server Won't Start
 - Check if port 8000 is already in use
 - Try a different port: `python rag_server.py --port 8001`
+
+### Database Issues
+- Delete `milvus_demo.db` to start fresh
+- Check file permissions in the directory
 
 ## Architecture Overview
 
@@ -122,7 +113,7 @@ See `python rag_server.py --help` for all options.
 │  │   Lifespan (Startup)             │  │
 │  │   - Load documents               │  │
 │  │   - Split into chunks            │  │
-│  │   - Create Milvus vector store   │  │
+│  │   - Create local Milvus DB       │  │
 │  │   - Initialize retriever         │  │
 │  │   - Create prompt template       │  │
 │  │   - Initialize ChatOpenAI        │  │
@@ -138,11 +129,11 @@ See `python rag_server.py --help` for all options.
 └─────────────────────────────────────────┘
          │                    │
          ▼                    ▼
-   ┌─────────┐          ┌──────────┐
-   │  Milvus │          │  OpenAI  │
-   │ (Vector │          │   API    │
-   │  Store) │          └──────────┘
-   └─────────┘
+   ┌─────────────┐      ┌──────────┐
+   │ milvus_demo │      │  OpenAI  │
+   │    .db      │      │   API    │
+   │ (local file)│      └──────────┘
+   └─────────────┘
 ```
 
 ## Next Steps

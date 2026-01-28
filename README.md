@@ -1,13 +1,13 @@
 # vllm-RAG
 
-FastAPI server for LangChain RAG (Retrieval-Augmented Generation) with Milvus vector store.
+FastAPI server for LangChain RAG (Retrieval-Augmented Generation) with local Milvus vector database.
 
 ## Features
 
 - FastAPI server with automatic OpenAPI documentation
 - LangChain RAG system with:
   - Document loading and text splitting
-  - Milvus vector store for semantic search
+  - **Local file-based Milvus vector database (no Docker needed!)**
   - OpenAI embeddings and ChatGPT
   - Retrieval-based question answering
 - Thread-safe parallel request handling
@@ -21,19 +21,12 @@ FastAPI server for LangChain RAG (Retrieval-Augmented Generation) with Milvus ve
 pip install -r requirements.txt
 ```
 
-2. Set up Milvus:
-```bash
-# Using Docker
-docker run -d --name milvus-standalone \
-  -p 19530:19530 -p 9091:9091 \
-  -v $(pwd)/milvus_data:/var/lib/milvus \
-  milvusdb/milvus:latest
-```
-
-3. Set your OpenAI API key:
+2. Set your OpenAI API key:
 ```bash
 export OPENAI_API_KEY="your-api-key-here"
 ```
+
+That's it! No Docker or external services needed.
 
 ## Usage
 
@@ -50,8 +43,7 @@ python rag_server.py \
   --host 0.0.0.0 \
   --port 8000 \
   --documents-path ./documents \
-  --milvus-host localhost \
-  --milvus-port 19530 \
+  --milvus-db ./milvus_demo.db \
   --collection-name rag_collection \
   --model-name gpt-3.5-turbo \
   --chunk-size 1000 \
@@ -131,8 +123,7 @@ Once the server is running, visit:
 - `--host`: Host to bind the server to (default: 0.0.0.0)
 - `--port`: Port to bind the server to (default: 8000)
 - `--documents-path`: Path to directory containing documents (default: ./documents)
-- `--milvus-host`: Milvus host (default: localhost)
-- `--milvus-port`: Milvus port (default: 19530)
+- `--milvus-db`: Path to local Milvus database file (default: ./milvus_demo.db)
 - `--collection-name`: Milvus collection name (default: rag_collection)
 - `--openai-api-key`: OpenAI API key (default: reads from OPENAI_API_KEY env var)
 - `--model-name`: OpenAI model name (default: gpt-3.5-turbo)
@@ -151,13 +142,15 @@ Supported formats:
 The server initializes all components once at startup:
 1. **Document Loading**: Loads documents from the specified directory
 2. **Text Splitting**: Splits documents into chunks for better retrieval
-3. **Vector Store**: Creates/connects to Milvus collection with OpenAI embeddings
+3. **Vector Store**: Creates a local file-based Milvus database with OpenAI embeddings
 4. **Retriever**: Configures retrieval strategy (top-k search)
 5. **Prompt Template**: Defines the RAG prompt format
 6. **ChatOpenAI**: Initializes the language model
 7. **QA Chain**: Combines all components into a question-answering chain
 
 Parallel requests are handled safely by running the synchronous `qa_chain.invoke()` in a thread pool using `asyncio.run_in_executor()`.
+
+The local Milvus database (`milvus_demo.db`) persists between server restarts, so you don't need to reindex documents each time.
 
 ## License
 
