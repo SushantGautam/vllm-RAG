@@ -38,4 +38,4 @@ ingest-document = "ingest_documents:main"
 setup = "setup_app:main"
 
 [tool.setuptools]
-py-modules = ["rag_server", "ingest_documents", "client", "utils"]
+py-modules = ["rag_server", "ingest_documents", "client", "utils", "setup_app"]
