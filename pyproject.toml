@@ -35,6 +35,7 @@ dependencies = [
 [project.scripts]
 rag-server = "rag_server:main"
 ingest-document = "ingest_documents:main"
+setup = "setup_app:main"
 
 [tool.setuptools]
 py-modules = ["rag_server", "ingest_documents", "client", "utils"]

@@ -1,232 +1,108 @@
 # vllm-RAG
 
-FastAPI server for LangChain RAG (Retrieval-Augmented Generation) with local Milvus vector database. **OpenAI-compatible API** for seamless integration.
+FastAPI RAG (Retrieval-Augmented Generation) server with a local file-based Milvus vector store. Works with OpenAI or any OpenAI-compatible LLM/embedding endpoints.
 
-## Features
+## Prerequisites
 
-- **OpenAI-compatible API** - Drop-in replacement for OpenAI's chat completion endpoint
-- FastAPI server with automatic OpenAPI documentation
-- LangChain RAG system with:
-  - Document loading and text splitting
-  - **Local file-based Milvus vector database (no Docker needed!)**
-  - OpenAI embeddings and ChatGPT
-  - Retrieval-based question answering
-- Thread-safe parallel request handling
-- CLI configuration via argparse
-- Health check endpoint
+- Python 3.8+ (project tested on modern Python versions)
+- `pip` to install dependencies
+- An OpenAI API key or an OpenAI-compatible LLM/embedding endpoint (optional)
+- Local Milvus via `milvus-lite` is supported (no separate Milvus service or Docker required)
 
-## Installation
+---
+
+## Quick Start ✅
 
 1. Install dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Set your OpenAI API key:
-```bash
-export OPENAI_API_KEY="your-api-key-here"
-```
+2. Create a `.env` file (recommended):
 
-## Usage
+- Quick (copy example):
+  ```bash
+  cp .env.example .env
+  # Edit .env and add your OPENAI_API_KEY and any secrets
+  ```
 
-### Step 1: Index Your Documents
+- Interactive (recommended):
+  ```bash
+  python setup.py
+  # The script prompts for HOST, PORT, MILVUS_DB, COLLECTION_NAME, DOCUMENTS_PATH,
+  # MODEL_NAME, EMBEDDING_MODEL_NAME, CHUNK_SIZE and CHUNK_OVERLAP.
+  # It writes to ./.env by default and backs up any existing .env to ./.env.bak.
+  # It intentionally does NOT prompt for secrets (OPENAI_API_KEY, EMBEDDING_API_KEY);
+  # add those manually after the script runs.
+  ```
 
-Before starting the server, you need to index your documents:
+3. Index your documents (default path: `./documents`):
 
 ```bash
 python ingest_documents.py
 ```
 
-This will:
-- Load documents from the `./documents` directory
-- Split them into chunks
-- Create embeddings and store them in `milvus_demo.db`
-
-With custom options:
+Optional flags:
 ```bash
-python ingest_documents.py \
-  --documents-path ./documents \
-  --milvus-db ./milvus_demo.db \
-  --collection-name rag_collection \
-  --chunk-size 1000 \
-  --chunk-overlap 200 \
-  --recreate  # Optional: recreate the collection from scratch
+python ingest_documents.py --documents-path ./documents --milvus-db ./milvus_demo.db --collection-name rag_collection --chunk-size 1000 --chunk-overlap 200
 ```
 
-**Using OpenAI-compatible embedding endpoints:**
-```bash
-python ingest_documents.py \
-  --documents-path ./documents \
-  --embedding-base-url http://localhost:8002/v1 \
-  --embedding-model-name your-embedding-model \
-  --openai-api-key your-api-key
-```
+4. Start the server:
 
-### Step 2: Start the Server
-
-Basic usage:
 ```bash
 python rag_server.py
-```
-
-With custom options:
-```bash
-python rag_server.py \
-  --host 0.0.0.0 \
-  --port 8000 \
-  --milvus-db ./milvus_demo.db \
-  --collection-name rag_collection \
-  --model-name gpt-3.5-turbo
-```
-
-**Using OpenAI-compatible endpoints (e.g., vLLM, LocalAI, LM Studio):**
-```bash
-python rag_server.py \
-  --openai-base-url http://localhost:8001/v1 \
-  --openai-api-key your-api-key \
-  --model-name your-model-name \
-  --embedding-base-url http://localhost:8002/v1 \
-  --embedding-api-key your-embedding-api-key \
-  --embedding-model-name your-embedding-model
-```
-
-### Step 3: Ask Questions
-
-```bash
+# or run uvicorn directly
 uvicorn rag_server:app --host 0.0.0.0 --port 8000
 ```
 
-Note: When using uvicorn directly, you need to set CLI args via environment or modify the code.
+5. Test the server:
 
-### Using Uvicorn directly
-
-```bash
-uvicorn rag_server:app --host 0.0.0.0 --port 8000
-```
-
-Note: When using uvicorn directly, you need to set CLI args via environment or modify the code.
-
----
-
-### Run via `uv` (Astral) 🔧
-
-You can run the tools directly from a remote Git repository with Astral `uv`. The repository exposes two entry points (console scripts): `rag-server` and `ingest-document`. Example:
-
-```bash
-uv run git+https://github.com/<owner>/<repo>.git#rag-server
-uv run git+https://github.com/<owner>/<repo>.git#ingest-document
-```
-
-You can also use `--with` to install the package first and then run its console script. When using `--with`, add `--` before the script name to separate `uv`'s options from the command. When running with `--with` or using the local path, `uv` will run commands from your current working directory and the code will prefer the `.env` file in that directory — so project-specific environment values (like `OPENAI_API_KEY` or `MILVUS_DB`) will be picked up automatically.
-
-Example:
-
-```bash
-uv run --with git+https://github.com/<owner>/<repo>.git -- rag-server --openai-api-key "$OPENAI_API_KEY" --port 8000
-```
-
-Replace `<owner>/<repo>` with the real Git URL (or a `git+ssh://` URL). You can also pin a branch, tag, or commit, for example:
-
-```bash
-uv run git+https://github.com/<owner>/<repo>.git@main#rag-server
-```
-
-These entry points map to the package's console scripts defined in `pyproject.toml`:
-
-- `rag-server` → `rag_server:main` (starts the FastAPI server)
-- `ingest-document` → `ingest_documents:main` (runs document ingestion)
-
----
-
-
-## API Endpoints
-
-### POST /v1/chat/completions
-
-OpenAI-compatible chat completion endpoint for asking questions to the RAG system.
-
-**Request:**
-```json
-{
-  "model": "gpt-3.5-turbo",
-  "messages": [
-    {"role": "user", "content": "What is FastAPI?"}
-  ]
-}
-```
-
-**Response:**
-```json
-{
-  "id": "chatcmpl-abc123",
-  "object": "chat.completion",
-  "created": 1234567890,
-  "model": "gpt-3.5-turbo",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "FastAPI is a modern, fast web framework for building APIs with Python..."
-      },
-      "finish_reason": "stop"
-    }
-  ],
-  "usage": {
-    "prompt_tokens": 0,
-    "completion_tokens": 0,
-    "total_tokens": 0
-  }
-}
-```
-
-**Example with curl:**
-```bash
-curl -X POST "http://localhost:8000/v1/chat/completions" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-3.5-turbo",
-    "messages": [{"role": "user", "content": "What is FastAPI?"}]
-  }'
-```
-
-**Example with Python:**
-```python
-import requests
-
-response = requests.post(
-    "http://localhost:8000/v1/chat/completions",
-    json={
-        "model": "gpt-3.5-turbo",
-        "messages": [{"role": "user", "content": "What is FastAPI?"}]
-    }
-)
-print(response.json()["choices"][0]["message"]["content"])
-```
-
-### GET /health
-
-Health check endpoint.
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "rag_initialized": true
-}
-```
-
-### GET /
-
-Get API information.
-
-## Interactive API Documentation
-
-Once the server is running, visit:
 - Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+- Health check: `curl http://localhost:8000/health`
+- Chat completions POST: `http://localhost:8000/v1/chat/completions`
 
-## CLI Options
+---
+
+## Configuration & Notes 🔧
+
+- Default host/port: `0.0.0.0:8000`.
+- Default Milvus DB file: `./milvus_demo.db`.
+- Add `OPENAI_API_KEY` and any secrets to your `.env` (do not commit secrets to source control).
+- If you set `API_SECRET`, include it in requests using `Authorization: Bearer $API_SECRET`.
+- Console scripts (defined in `pyproject.toml`):
+  - `rag-server` → `rag_server:main`
+  - `ingest-document` → `ingest_documents:main`
+  - `setup` → `setup:main`
+
+---
+
+## API Overview
+
+- POST `/v1/chat/completions` — OpenAI-compatible chat completion endpoint (see Swagger UI for full schema).
+- GET `/health` — Health check.
+- Interactive docs: `/docs` (Swagger), `/redoc` (ReDoc).
+
+---
+
+## Adding Documents
+
+- Add `.txt` files to `./documents` (or point ingestion to another folder with `--documents-path`).
+- Re-run ingestion to update the DB (`--recreate` to rebuild from scratch) and restart the server.
+
+---
+
+## Architecture (short)
+
+- `ingest_documents.py` — loads documents, splits them, builds embeddings and stores vectors in a local Milvus file.
+- `rag_server.py` — loads Milvus DB, initializes retriever and LLM, serves OpenAI-compatible API.
+
+---
+
+## License
+
+MIT
+
 
 ## CLI Options
 
