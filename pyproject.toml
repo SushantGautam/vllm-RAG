@@ -7,7 +7,7 @@ name = "vllm-rag"
 version = "0.1.0"
 description = "FastAPI RAG server and document ingestion tooling"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10,<4.0"
 license = { text = "MIT" }
 authors = [
   { name = "Sushant Gautam" }
