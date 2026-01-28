@@ -97,13 +97,37 @@ def parse_args():
         "--openai-api-key",
         type=str,
         default=None,
-        help="OpenAI API key (default: reads from OPENAI_API_KEY env var)",
+        help="OpenAI API key for LLM (default: reads from OPENAI_API_KEY env var)",
+    )
+    parser.add_argument(
+        "--openai-base-url",
+        type=str,
+        default=None,
+        help="OpenAI-compatible base URL for LLM (default: uses OpenAI's default)",
     )
     parser.add_argument(
         "--model-name",
         type=str,
         default="gpt-3.5-turbo",
         help="OpenAI model name (default: gpt-3.5-turbo)",
+    )
+    parser.add_argument(
+        "--embedding-api-key",
+        type=str,
+        default=None,
+        help="API key for embedding model (default: uses same as --openai-api-key or OPENAI_API_KEY env var)",
+    )
+    parser.add_argument(
+        "--embedding-base-url",
+        type=str,
+        default=None,
+        help="OpenAI-compatible base URL for embedding model (default: uses OpenAI's default)",
+    )
+    parser.add_argument(
+        "--embedding-model-name",
+        type=str,
+        default="text-embedding-ada-002",
+        help="Embedding model name (default: text-embedding-ada-002)",
     )
     return parser.parse_args()
 
@@ -129,8 +153,18 @@ def initialize_rag_system(args):
         )
     
     # Initialize embeddings
-    print("Initializing OpenAI embeddings...")
-    embeddings = OpenAIEmbeddings()
+    print(f"Initializing embeddings (model: {args.embedding_model_name})...")
+    embedding_kwargs = {"model": args.embedding_model_name}
+    
+    # Set embedding API key (defaults to main API key if not specified)
+    if args.embedding_api_key:
+        embedding_kwargs["openai_api_key"] = args.embedding_api_key
+    
+    # Set embedding base URL if provided
+    if args.embedding_base_url:
+        embedding_kwargs["base_url"] = args.embedding_base_url
+    
+    embeddings = OpenAIEmbeddings(**embedding_kwargs)
     
     # Connect to existing Milvus vector store
     print(f"Connecting to Milvus database at {args.milvus_db}...")
@@ -168,7 +202,16 @@ Answer:"""
     
     # Initialize ChatOpenAI
     print(f"Initializing ChatOpenAI with model {args.model_name}...")
-    llm = ChatOpenAI(model_name=args.model_name, temperature=0)
+    llm_kwargs = {
+        "model_name": args.model_name,
+        "temperature": 0
+    }
+    
+    # Set custom base URL if provided
+    if args.openai_base_url:
+        llm_kwargs["base_url"] = args.openai_base_url
+    
+    llm = ChatOpenAI(**llm_kwargs)
     
     # Create QA chain
     qa_chain = RetrievalQA.from_chain_type(

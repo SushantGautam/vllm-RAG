@@ -40,7 +40,19 @@ def parse_args():
         "--openai-api-key",
         type=str,
         default=None,
-        help="OpenAI API key (default: reads from OPENAI_API_KEY env var)",
+        help="OpenAI API key for embeddings (default: reads from OPENAI_API_KEY env var)",
+    )
+    parser.add_argument(
+        "--embedding-base-url",
+        type=str,
+        default=None,
+        help="OpenAI-compatible base URL for embedding model (default: uses OpenAI's default)",
+    )
+    parser.add_argument(
+        "--embedding-model-name",
+        type=str,
+        default="text-embedding-ada-002",
+        help="Embedding model name (default: text-embedding-ada-002)",
     )
     parser.add_argument(
         "--chunk-size",
@@ -117,8 +129,14 @@ def ingest_documents(args):
     print()
     
     # Initialize embeddings
-    print("Initializing OpenAI embeddings...")
-    embeddings = OpenAIEmbeddings()
+    print(f"Initializing embeddings (model: {args.embedding_model_name})...")
+    embedding_kwargs = {"model": args.embedding_model_name}
+    
+    # Set embedding base URL if provided
+    if args.embedding_base_url:
+        embedding_kwargs["base_url"] = args.embedding_base_url
+    
+    embeddings = OpenAIEmbeddings(**embedding_kwargs)
     print("✓ Embeddings initialized")
     print()
     

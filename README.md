@@ -55,6 +55,15 @@ python ingest_documents.py \
   --recreate  # Optional: recreate the collection from scratch
 ```
 
+**Using OpenAI-compatible embedding endpoints:**
+```bash
+python ingest_documents.py \
+  --documents-path ./documents \
+  --embedding-base-url http://localhost:8002/v1 \
+  --embedding-model-name your-embedding-model \
+  --openai-api-key your-api-key
+```
+
 ### Step 2: Start the Server
 
 Basic usage:
@@ -70,6 +79,17 @@ python rag_server.py \
   --milvus-db ./milvus_demo.db \
   --collection-name rag_collection \
   --model-name gpt-3.5-turbo
+```
+
+**Using OpenAI-compatible endpoints (e.g., vLLM, LocalAI, LM Studio):**
+```bash
+python rag_server.py \
+  --openai-base-url http://localhost:8001/v1 \
+  --openai-api-key your-api-key \
+  --model-name your-model-name \
+  --embedding-base-url http://localhost:8002/v1 \
+  --embedding-api-key your-embedding-api-key \
+  --embedding-model-name your-embedding-model
 ```
 
 ### Step 3: Ask Questions
@@ -184,7 +204,9 @@ Once the server is running, visit:
 - `--documents-path`: Path to directory containing documents (default: ./documents)
 - `--milvus-db`: Path to local Milvus database file (default: ./milvus_demo.db)
 - `--collection-name`: Milvus collection name (default: rag_collection)
-- `--openai-api-key`: OpenAI API key (default: reads from OPENAI_API_KEY env var)
+- `--openai-api-key`: OpenAI API key for embeddings (default: reads from OPENAI_API_KEY env var)
+- `--embedding-base-url`: OpenAI-compatible base URL for embedding model (default: uses OpenAI's default)
+- `--embedding-model-name`: Embedding model name (default: text-embedding-ada-002)
 - `--chunk-size`: Chunk size for text splitting (default: 1000)
 - `--chunk-overlap`: Chunk overlap for text splitting (default: 200)
 - `--recreate`: Recreate collection (delete existing data)
@@ -196,8 +218,74 @@ Once the server is running, visit:
 - `--port`: Port to bind the server to (default: 8000)
 - `--milvus-db`: Path to local Milvus database file (default: ./milvus_demo.db)
 - `--collection-name`: Milvus collection name (default: rag_collection)
-- `--openai-api-key`: OpenAI API key (default: reads from OPENAI_API_KEY env var)
+- `--openai-api-key`: OpenAI API key for LLM (default: reads from OPENAI_API_KEY env var)
+- `--openai-base-url`: OpenAI-compatible base URL for LLM (default: uses OpenAI's default)
 - `--model-name`: OpenAI model name (default: gpt-3.5-turbo)
+- `--embedding-api-key`: API key for embedding model (default: uses same as --openai-api-key)
+- `--embedding-base-url`: OpenAI-compatible base URL for embedding model (default: uses OpenAI's default)
+- `--embedding-model-name`: Embedding model name (default: text-embedding-ada-002)
+
+## Using OpenAI-Compatible Endpoints
+
+This RAG system supports any OpenAI-compatible API endpoint, including:
+- **vLLM**: High-performance LLM inference server
+- **LocalAI**: Local, privacy-focused AI
+- **LM Studio**: Easy-to-use local LLM server
+- **Ollama**: Run large language models locally
+- **Text Generation WebUI**: Gradio web UI for LLMs
+
+### Configuration
+
+Both the **LLM** and **embedding model** can be configured independently with:
+- Custom base URLs
+- Custom model names  
+- Separate API keys
+
+### Example: Using vLLM for both LLM and embeddings
+
+1. **Start vLLM servers:**
+   ```bash
+   # Start LLM server
+   vllm serve your-llm-model --port 8001
+   
+   # Start embedding server
+   vllm serve your-embedding-model --port 8002
+   ```
+
+2. **Ingest documents with custom embedding endpoint:**
+   ```bash
+   python ingest_documents.py \
+     --documents-path ./documents \
+     --embedding-base-url http://localhost:8002/v1 \
+     --embedding-model-name your-embedding-model \
+     --openai-api-key dummy-key
+   ```
+
+3. **Start RAG server with custom endpoints:**
+   ```bash
+   python rag_server.py \
+     --openai-base-url http://localhost:8001/v1 \
+     --openai-api-key dummy-key \
+     --model-name your-llm-model \
+     --embedding-base-url http://localhost:8002/v1 \
+     --embedding-api-key dummy-key \
+     --embedding-model-name your-embedding-model
+   ```
+
+### Example: Using different providers for LLM and embeddings
+
+You can mix and match providers. For example, use OpenAI for embeddings but a local vLLM server for the LLM:
+
+```bash
+python rag_server.py \
+  --openai-base-url http://localhost:8001/v1 \
+  --openai-api-key dummy-key \
+  --model-name your-local-model \
+  --embedding-model-name text-embedding-ada-002 \
+  --embedding-api-key sk-your-openai-key
+```
+
+**Note:** Make sure your embedding model dimensions match between document ingestion and server runtime. Using different embedding models will result in poor retrieval quality.
 
 ## Adding Documents
 
