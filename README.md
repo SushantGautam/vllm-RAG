@@ -106,6 +106,31 @@ uvicorn rag_server:app --host 0.0.0.0 --port 8000
 
 Note: When using uvicorn directly, you need to set CLI args via environment or modify the code.
 
+---
+
+### Run via `uv` (Astral) 🔧
+
+You can run the tools directly from a remote Git repository with Astral `uv`. The repository exposes two entry points (console scripts): `rag-server` and `ingest-document`. Example:
+
+```bash
+uv run git+https://github.com/<owner>/<repo>.git#rag-server
+uv run git+https://github.com/<owner>/<repo>.git#ingest-document
+```
+
+Replace `<owner>/<repo>` with the real Git URL (or a `git+ssh://` URL). You can also pin a branch, tag, or commit, for example:
+
+```bash
+uv run git+https://github.com/<owner>/<repo>.git@main#rag-server
+```
+
+These entry points map to the package's console scripts defined in `pyproject.toml`:
+
+- `rag-server` → `rag_server:main` (starts the FastAPI server)
+- `ingest-document` → `ingest_documents:main` (runs document ingestion)
+
+---
+
+
 ## API Endpoints
 
 ### POST /v1/chat/completions
