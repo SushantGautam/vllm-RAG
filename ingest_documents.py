@@ -95,10 +95,12 @@ def validate_env_vars(required_vars):
     env_path = ".env"
     if os.path.exists(env_path):
         env_vals = dotenv_values(env_path)
+        print(f"DEBUG validate_env_vars: found .env at {env_path}; dotenv_values keys: {list((env_vals or {}).keys())}")
         # Ensure variables present in .env are exported into the process
         # environment so downstream code that expects them in os.environ works.
         for k, v in (env_vals or {}).items():
             if v is not None and k not in os.environ:
+                print(f"DEBUG validate_env_vars: exporting {k} from .env into os.environ")
                 os.environ[k] = v
         missing = [v for v in required_vars if not env_vals.get(v)]
         if missing:
