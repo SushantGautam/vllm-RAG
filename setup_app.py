@@ -61,9 +61,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Interactive .env setup from .env.example")
     parser.add_argument(
         "--example",
-        default=".env.example",
-        help="Path to the example env file (default: ./.env.example)",
+        default=".",
+        help="Path to the example env file. Use '.' (default) to copy the bundled example packaged with the library",
     )
+
     parser.add_argument(
         "--dest",
         default=".env",
@@ -74,9 +75,27 @@ def main() -> None:
     example_path = args.example
     dest_path = args.dest
 
-    if not os.path.exists(example_path):
-        print(f"Error: example file not found at {example_path}")
-        return
+    # Resolve example path: allow default '.' to mean the packaged .env.example next to this module
+    packaged_example = os.path.join(os.path.dirname(__file__), ".env.example")
+    if example_path in (".", "./"):
+        if os.path.exists(packaged_example):
+            example_path = packaged_example
+        else:
+            # try local .env.example in current working dir
+            local_example = ".env.example"
+            if os.path.exists(local_example):
+                example_path = local_example
+            else:
+                print(f"Error: example file not found at {packaged_example} or {local_example}")
+                return
+    elif not os.path.exists(example_path):
+        # If provided a path that doesn't exist, try the packaged example as a fallback
+        if os.path.exists(packaged_example):
+            example_path = packaged_example
+        else:
+            print(f"Error: example file not found at {example_path}")
+            return
+
 
     ex_lines, ex_map = read_env_file(example_path)
     _, existing_map = read_env_file(dest_path) if os.path.exists(dest_path) else ([], {})
