@@ -19,22 +19,22 @@ FastAPI RAG (Retrieval-Augmented Generation) server with a local file-based Milv
 pip install -r requirements.txt
 ```
 
-2. Create a `.env` file (recommended):
+2. Create a `.env` file (strongly recommended — use the interactive `setup`):
 
-- Quick (copy example):
-  ```bash
-  cp .env.example .env
-  # Edit .env and add your OPENAI_API_KEY and any secrets
-  ```
-
-- Interactive (recommended):
+- Interactive (strongly recommended):
   ```bash
   python setup.py
   # The script prompts for HOST, PORT, MILVUS_DB, COLLECTION_NAME, DOCUMENTS_PATH,
   # MODEL_NAME, EMBEDDING_MODEL_NAME, CHUNK_SIZE and CHUNK_OVERLAP.
   # It writes to ./.env by default and backs up any existing .env to ./.env.bak.
-  # It intentionally does NOT prompt for secrets (OPENAI_API_KEY, EMBEDDING_API_KEY);
-  # add those manually after the script runs.
+  # After running, edit ./.env and add sensitive keys such as OPENAI_API_KEY, EMBEDDING_API_KEY, and API_SECRET.
+  # Re-run `python setup.py` anytime to override values; the previous .env will be backed up to .env.bak.
+  ```
+
+- Quick (copy example):
+  ```bash
+  cp .env.example .env
+  # Edit .env and add your OPENAI_API_KEY and any secrets
   ```
 
 3. Index your documents (default path: `./documents`):
@@ -61,6 +61,42 @@ uvicorn rag_server:app --host 0.0.0.0 --port 8000
 - Swagger UI: http://localhost:8000/docs
 - Health check: `curl http://localhost:8000/health`
 - Chat completions POST: `http://localhost:8000/v1/chat/completions`
+
+---
+
+## Run quickly with Astral `uv` ⚡
+
+An easy one-liner to spin up the server from a remote repo (uses defaults from `.env` if present):
+
+```bash
+uv run --refresh --with git+https://github.com/SushantGautam/vllm-RAG.git rag-server
+```
+
+Recommended flow (strongly encourage using `setup` to create `./.env` and then add API keys there):
+
+1. Create `./.env` interactively (writes `./.env` and backs up existing `.env` to `.env.bak`):
+
+```bash
+uv run --refresh --with git+https://github.com/SushantGautam/vllm-RAG.git -- setup
+```
+
+2. Edit `./.env` and add sensitive keys: `OPENAI_API_KEY`, `EMBEDDING_API_KEY`, `API_SECRET`.
+
+3. Ingest your documents (indexes `./documents` into `./milvus_demo.db`):
+
+```bash
+uv run --refresh --with git+https://github.com/SushantGautam/vllm-RAG.git -- ingest-document
+# Or pass a key directly (not recommended for long-term use):
+uv run --refresh --with git+https://github.com/SushantGautam/vllm-RAG.git -- ingest-document --openai-api-key "$OPENAI_API_KEY"
+```
+
+4. Start the server:
+
+```bash
+uv run --refresh --with git+https://github.com/SushantGautam/vllm-RAG.git rag-server
+```
+
+Note: When using `--with` or running the console scripts locally, `uv` runs commands in your current working directory and will pick up the `./.env` file you created, so the `setup`-generated `.env` will be used automatically.
 
 ---
 
