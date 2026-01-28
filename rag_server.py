@@ -203,8 +203,8 @@ def parse_args():
     parser.add_argument(
         "--model-name",
         type=str,
-        default=os.getenv("OPENAI_MODEL_NAME", os.getenv("MODEL_NAME", "gpt-3.5-turbo")),
-        help="OpenAI model name (default: gpt-3.5-turbo or OPENAI_MODEL_NAME/MODEL_NAME env var)",
+        default=os.getenv("OPENAI_MODEL_NAME", "gpt-3.5-turbo"),
+        help="OpenAI model name (default: gpt-3.5-turbo or OPENAI_MODEL_NAME env var)",
     )
     parser.add_argument(
         "--embedding-api-key",
