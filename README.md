@@ -30,7 +30,31 @@ That's it! No Docker or external services needed.
 
 ## Usage
 
-### Start the server
+### Step 1: Index Your Documents
+
+Before starting the server, you need to index your documents:
+
+```bash
+python ingest_documents.py
+```
+
+This will:
+- Load documents from the `./documents` directory
+- Split them into chunks
+- Create embeddings and store them in `milvus_demo.db`
+
+With custom options:
+```bash
+python ingest_documents.py \
+  --documents-path ./documents \
+  --milvus-db ./milvus_demo.db \
+  --collection-name rag_collection \
+  --chunk-size 1000 \
+  --chunk-overlap 200 \
+  --recreate  # Optional: recreate the collection from scratch
+```
+
+### Step 2: Start the Server
 
 Basic usage:
 ```bash
@@ -42,13 +66,18 @@ With custom options:
 python rag_server.py \
   --host 0.0.0.0 \
   --port 8000 \
-  --documents-path ./documents \
   --milvus-db ./milvus_demo.db \
   --collection-name rag_collection \
-  --model-name gpt-3.5-turbo \
-  --chunk-size 1000 \
-  --chunk-overlap 200
+  --model-name gpt-3.5-turbo
 ```
+
+### Step 3: Ask Questions
+
+```bash
+uvicorn rag_server:app --host 0.0.0.0 --port 8000
+```
+
+Note: When using uvicorn directly, you need to set CLI args via environment or modify the code.
 
 ### Using Uvicorn directly
 
@@ -120,37 +149,73 @@ Once the server is running, visit:
 
 ## CLI Options
 
-- `--host`: Host to bind the server to (default: 0.0.0.0)
-- `--port`: Port to bind the server to (default: 8000)
+## CLI Options
+
+### ingest_documents.py
+
 - `--documents-path`: Path to directory containing documents (default: ./documents)
 - `--milvus-db`: Path to local Milvus database file (default: ./milvus_demo.db)
 - `--collection-name`: Milvus collection name (default: rag_collection)
 - `--openai-api-key`: OpenAI API key (default: reads from OPENAI_API_KEY env var)
-- `--model-name`: OpenAI model name (default: gpt-3.5-turbo)
 - `--chunk-size`: Chunk size for text splitting (default: 1000)
 - `--chunk-overlap`: Chunk overlap for text splitting (default: 200)
+- `--recreate`: Recreate collection (delete existing data)
+- `--glob-pattern`: Glob pattern for files to load (default: **/*.txt)
+
+### rag_server.py
+
+- `--host`: Host to bind the server to (default: 0.0.0.0)
+- `--port`: Port to bind the server to (default: 8000)
+- `--milvus-db`: Path to local Milvus database file (default: ./milvus_demo.db)
+- `--collection-name`: Milvus collection name (default: rag_collection)
+- `--openai-api-key`: OpenAI API key (default: reads from OPENAI_API_KEY env var)
+- `--model-name`: OpenAI model name (default: gpt-3.5-turbo)
 
 ## Adding Documents
 
-Place your text files in the `documents` directory (or specify a custom path with `--documents-path`). The server will automatically load and index them on startup.
+**Two-step process:**
+
+1. **Index documents** using `ingest_documents.py`:
+   ```bash
+   python ingest_documents.py --documents-path ./documents
+   ```
+
+2. **Start the server** to serve the indexed documents:
+   ```bash
+   python rag_server.py
+   ```
+
+To add more documents to an existing index:
+```bash
+python ingest_documents.py --documents-path ./new_documents
+```
+
+To rebuild the entire index from scratch:
+```bash
+python ingest_documents.py --recreate
+```
 
 Supported formats:
-- `.txt` files (additional formats can be added by modifying the loader)
+- `.txt` files by default
+- Can be extended to support other formats (PDF, Word, etc.) by modifying `ingest_documents.py`
 
 ## Architecture
 
-The server initializes all components once at startup:
+**Document Ingestion (ingest_documents.py):**
 1. **Document Loading**: Loads documents from the specified directory
 2. **Text Splitting**: Splits documents into chunks for better retrieval
-3. **Vector Store**: Creates a local file-based Milvus database with OpenAI embeddings
-4. **Retriever**: Configures retrieval strategy (top-k search)
-5. **Prompt Template**: Defines the RAG prompt format
-6. **ChatOpenAI**: Initializes the language model
-7. **QA Chain**: Combines all components into a question-answering chain
+3. **Vector Store Creation**: Creates/updates local file-based Milvus database with OpenAI embeddings
+
+**Server Runtime (rag_server.py):**
+1. **Connect to Vector Store**: Connects to pre-existing Milvus database
+2. **Initialize Retriever**: Configures retrieval strategy (top-k search)
+3. **Setup Prompt Template**: Defines the RAG prompt format
+4. **Initialize ChatOpenAI**: Sets up the language model
+5. **Build QA Chain**: Combines all components into a question-answering chain
 
 Parallel requests are handled safely by running the synchronous `qa_chain.invoke()` in a thread pool using `asyncio.run_in_executor()`.
 
-The local Milvus database (`milvus_demo.db`) persists between server restarts, so you don't need to reindex documents each time.
+The local Milvus database (`milvus_demo.db`) persists between server restarts, allowing fast startup times as documents don't need to be reindexed.
 
 ## License
 

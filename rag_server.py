@@ -14,13 +14,10 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_community.vectorstores import Milvus
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
-from pymilvus import MilvusClient
 
 
 # Global variables to store initialized components
@@ -54,12 +51,6 @@ def parse_args():
         help="Port to bind the server to (default: 8000)",
     )
     parser.add_argument(
-        "--documents-path",
-        type=str,
-        default="./documents",
-        help="Path to directory containing documents (default: ./documents)",
-    )
-    parser.add_argument(
         "--milvus-db",
         type=str,
         default="./milvus_demo.db",
@@ -83,25 +74,15 @@ def parse_args():
         default="gpt-3.5-turbo",
         help="OpenAI model name (default: gpt-3.5-turbo)",
     )
-    parser.add_argument(
-        "--chunk-size",
-        type=int,
-        default=1000,
-        help="Chunk size for text splitting (default: 1000)",
-    )
-    parser.add_argument(
-        "--chunk-overlap",
-        type=int,
-        default=200,
-        help="Chunk overlap for text splitting (default: 200)",
-    )
     return parser.parse_args()
 
 
 def initialize_rag_system(args):
     """
-    Initialize the RAG system with document loading, splitting,
-    vector store, retriever, prompt, and ChatOpenAI.
+    Initialize the RAG system by connecting to existing Milvus vector store,
+    setting up retriever, prompt, and ChatOpenAI.
+    
+    Note: Documents should be pre-loaded using ingest_documents.py
     """
     global qa_chain, vectorstore
     
@@ -116,56 +97,25 @@ def initialize_rag_system(args):
             "OpenAI API key must be provided via --openai-api-key or OPENAI_API_KEY env var"
         )
     
-    # Load documents
-    print(f"Loading documents from {args.documents_path}...")
-    if not os.path.exists(args.documents_path):
-        print(f"Warning: Documents path '{args.documents_path}' does not exist. Creating empty collection.")
-        documents = []
-    else:
-        loader = DirectoryLoader(
-            args.documents_path,
-            glob="**/*.txt",
-            loader_cls=TextLoader,
-        )
-        documents = loader.load()
-        print(f"Loaded {len(documents)} documents")
-    
-    # Split documents
-    if documents:
-        print("Splitting documents...")
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=args.chunk_size,
-            chunk_overlap=args.chunk_overlap,
-        )
-        splits = text_splitter.split_documents(documents)
-        print(f"Created {len(splits)} document chunks")
-    else:
-        splits = []
-        print("No documents to split")
-    
     # Initialize embeddings
     print("Initializing OpenAI embeddings...")
     embeddings = OpenAIEmbeddings()
     
-    # Initialize local Milvus vector store
-    print(f"Initializing local Milvus database at {args.milvus_db}...")
+    # Connect to existing Milvus vector store
+    print(f"Connecting to Milvus database at {args.milvus_db}...")
     
-    if splits:
-        vectorstore = Milvus.from_documents(
-            documents=splits,
-            embedding=embeddings,
-            collection_name=args.collection_name,
-            connection_args={"uri": args.milvus_db},
+    if not os.path.exists(args.milvus_db):
+        raise ValueError(
+            f"Milvus database not found at {args.milvus_db}. "
+            f"Please run 'python ingest_documents.py' first to create and populate the database."
         )
-        print("Vector store created and populated")
-    else:
-        # Create empty vector store
-        vectorstore = Milvus(
-            embedding_function=embeddings,
-            collection_name=args.collection_name,
-            connection_args={"uri": args.milvus_db},
-        )
-        print("Empty vector store created")
+    
+    vectorstore = Milvus(
+        embedding_function=embeddings,
+        collection_name=args.collection_name,
+        connection_args={"uri": args.milvus_db},
+    )
+    print("✓ Connected to vector store")
     
     # Initialize retriever
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})

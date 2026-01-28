@@ -27,20 +27,29 @@ cp .env.example .env
 # Edit .env and add your API key
 ```
 
-### 3. Start the Server
+### 3. Index Your Documents
+
+Before starting the server, index your documents:
+
+```bash
+python ingest_documents.py
+```
+
+This will load documents from `./documents` and create the vector database.
+
+### 4. Start the Server
 
 ```bash
 python rag_server.py
 ```
 
 The server will:
-- Load documents from the `./documents` directory
-- Create a local Milvus database file (`milvus_demo.db`)
+- Connect to the existing Milvus database (`milvus_demo.db`)
 - Start on http://localhost:8000
 
 That's it! No external services or Docker required.
 
-### 4. Test the Server
+### 5. Test the Server
 
 #### Using the web browser:
 Visit http://localhost:8000/docs for interactive API documentation
@@ -72,12 +81,11 @@ All configuration options can be set via command line arguments:
 python rag_server.py \
   --host 0.0.0.0 \
   --port 8000 \
-  --documents-path ./documents \
   --milvus-db ./milvus_demo.db \
   --model-name gpt-3.5-turbo
 ```
 
-See `python rag_server.py --help` for all options.
+See `python rag_server.py --help` and `python ingest_documents.py --help` for all options.
 
 ## Adding Your Own Documents
 
@@ -102,18 +110,28 @@ See `python rag_server.py --help` for all options.
 ## Architecture Overview
 
 ```
-┌─────────────┐
-│   Client    │
-└──────┬──────┘
-       │ POST /ask
-       ▼
-┌─────────────────────────────────────────┐
-│         FastAPI Server                  │
+┌──────────────────┐
+│  ingest_documents │
+│      .py         │
+└────────┬─────────┘
+         │
+         │ 1. Load & split documents
+         │ 2. Create embeddings
+         │ 3. Store in Milvus
+         ▼
+   ┌─────────────┐
+   │ milvus_demo │
+   │    .db      │
+   │ (local file)│
+   └──────┬──────┘
+          │
+          │ Read vectors
+          │
+┌─────────▼───────────────────────────────┐
+│         rag_server.py                   │
 │  ┌──────────────────────────────────┐  │
 │  │   Lifespan (Startup)             │  │
-│  │   - Load documents               │  │
-│  │   - Split into chunks            │  │
-│  │   - Create local Milvus DB       │  │
+│  │   - Connect to Milvus DB         │  │
 │  │   - Initialize retriever         │  │
 │  │   - Create prompt template       │  │
 │  │   - Initialize ChatOpenAI        │  │
@@ -126,14 +144,14 @@ See `python rag_server.py --help` for all options.
 │  │   - Run in thread pool           │  │
 │  │   - Return answer                │  │
 │  └──────────────────────────────────┘  │
-└─────────────────────────────────────────┘
-         │                    │
-         ▼                    ▼
-   ┌─────────────┐      ┌──────────┐
-   │ milvus_demo │      │  OpenAI  │
-   │    .db      │      │   API    │
-   │ (local file)│      └──────────┘
-   └─────────────┘
+└─────────────────┬───────────────────────┘
+                  │
+                  │ API calls
+                  ▼
+            ┌──────────┐
+            │  OpenAI  │
+            │   API    │
+            └──────────┘
 ```
 
 ## Next Steps
