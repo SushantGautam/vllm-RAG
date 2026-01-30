@@ -11,6 +11,8 @@ from dotenv import load_dotenv, dotenv_values, find_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_openai import OpenAIEmbeddings
+from bisect import bisect_right
+
 
 _env_path = find_dotenv(usecwd=True)
 if _env_path:
@@ -86,7 +88,7 @@ def parse_args():
     parser.add_argument(
         "--glob-pattern",
         type=str,
-        default=os.getenv("GLOB_PATTERN", "**/*.txt"),
+        default=os.getenv("GLOB_PATTERN", "**/*.md"),
         help="Glob pattern for files to load (default: **/*.txt or GLOB_PATTERN env var)",
     )
     return parser.parse_args()
@@ -162,8 +164,13 @@ async def ingest_documents(args):
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
     )
-    splits = text_splitter.split_documents(documents)
-    print(f"✓ Created {len(splits)} chunk(s)")
+    splits=[]
+    for d in documents:
+        t=d.page_content; nl=[i for i,c in enumerate(t) if c=="\n"]; ln=lambda p: bisect_right(nl,p)+1; cur=0
+        for ch in text_splitter.split_text(t):
+            s=t.find(ch,cur); e=s+len(ch); cur=e
+            splits.append(d.__class__(page_content=ch, metadata={**d.metadata,"start_line":ln(s),"end_line":ln(e)}))
+    print(f"✓ Created {len(splits)} chunk(s)\n")
     print()
     
     # Initialize embeddings
@@ -192,17 +199,25 @@ async def ingest_documents(args):
     # without producing a warning. Create the Milvus instance directly in this
     # (main) thread while the event loop is active.
     import asyncio
-    from langchain_milvus import Milvus
+    from langchain_milvus import Milvus, BM25BuiltInFunction
 
     try:
         vectorstore = Milvus.from_documents(
             documents=splits,
             embedding=embeddings,
             collection_name=args.collection_name,
-            connection_args={
-                "uri": args.milvus_db,
-            },
-            index_params={"index_type": "FLAT", "metric_type": "L2"},
+            connection_args={"uri": args.milvus_db},
+            # ✅ Add BM25 sparse field
+            builtin_function=BM25BuiltInFunction(output_field_names="sparse"),
+            index_params=[
+                # 1) dense vector field index
+                    {"index_type": "FLAT", "metric_type": "L2"},
+                    # sparse (Lite supports this)
+                    {"index_type": "SPARSE_INVERTED_INDEX", "metric_type": "BM25"},
+                # ✅ Tell Milvus you have 2 vector fields now
+                    ],
+            vector_field=["dense", "sparse"],
+            drop_old=True,
         )
     except Exception as e:
         import traceback

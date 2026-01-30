@@ -48,3 +48,7 @@ milvus_demo.db
 test_documents/
 *.lock
 *.pid
+dump_out
+
+static
+documents/documents
