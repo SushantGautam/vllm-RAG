@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RAG-infer Preview</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      body { padding: 1rem; }
+      .result-card { margin-bottom: 1rem; }
+      .support-link { cursor: pointer; color: #0d6efd; text-decoration: underline; }
+      .doc-viewer { height: 75vh; overflow: auto; border: 1px solid #e5e7eb; padding: 0.5rem; background: #f8fafc; }
+      .line { font-family: monospace; white-space: pre; padding: 0.1rem 0.25rem; display: block; }
+      .line-number { width: 4.25rem; display: inline-block; color: #6c757d; }
+      .line-text { display: inline-block; width: calc(100% - 5rem); }
+      .highlight { background: #fff3bf; }
+      .support-highlight { border-left: 4px solid #ffd43b; padding-left: .5rem; }
+      .clickable-line:hover { background:#eef2ff; }
+      .cons-link { cursor: pointer; text-decoration: none; }
+      .consideration-item.cons-highlight { background: #fff3bf; border-left: 4px solid #ffd43b; padding-left: .5rem; transition: background 0.25s ease; }
+      .cons-flash { box-shadow: 0 0 0 3px rgba(255, 180, 0, 0.15); transition: box-shadow 0.3s ease; }
+      @media (max-width: 767px) {
+        .doc-viewer { height: 45vh; }
+      }
+      /* Loader image style */
+      .loader-container { width: 100%; height: 50vh; display:flex; align-items:center; justify-content:center; }
+      .loader-img { width: auto; max-width: 100%; height: 50%; object-fit: contain; pointer-events: none; user-select: none; touch-action: none; }
+    </style>
+  </head>
+  <body class="container-fluid">
+    <div class="row g-3">
+      <div class="col-12">
+        <h4>RAG-infer Preview🔧</h4>
+        <div class="float-end">
+          <button id="manageKeyBtn" class="btn btn-sm btn-outline-primary">Enter API Key</button>
+        </div>
+        <p class="text-muted">Enter a practical scenario or use case (e.g. a user questions, policy checks, or real-world situation).
+This preview will generate question–answer pairs based on the scenario you provide, following the defined guidelines. <br>
+Supporting document chunks are shown—click any chunk to view and highlight the exact source lines.</p>
+      </div>
+
+      <!-- Full width top split -->
+      <div class="col-12">
+        <div class="row g-3">
+          <div class="col-12 col-lg-6" id="leftTop">
+            <!-- Scenario form (left column) -->
+            <form id="queryForm" class="mb-3">
+              <div class="mb-2">
+                <label for="scenario" class="form-label">Scenario</label>
+                <input id="scenario" class="form-control" placeholder="e.g., Daily routines for children" required />
+              </div>
+              <div class="d-flex gap-2">
+                <button id="runBtn" class="btn btn-primary" type="submit">Run</button>
+                <button id="clearBtn" class="btn btn-outline-secondary" type="button">Clear</button>
+              </div>
+            </form>
+
+            <!-- Considerations container -->
+            <div id="considerationsContainer"></div>
+          </div>
+
+          <div class="col-12 col-lg-6" id="rightTop">
+            <!-- Column 2 (right) - Related items / QAs -->
+            <div id="relatedQAs"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Full width: Search Plan Used (hidden until available) -->
+      <div class="col-12 d-none" id="searchPlanSection">
+        <h5>Search Plan Used:</h5>
+        <div class="row g-3">
+          <div class="col-12 col-md-6" id="planAreas"></div>
+          <div class="col-12 col-md-6" id="planQueries"></div>
+        </div>
+      </div>
+
+      <!-- Results (misc) -->
+      <div class="col-12" id="results" aria-live="polite"></div>
+    </div>
+
+    <!-- Document modal -->
+    <div class="modal fade" id="docModal" tabindex="-1" aria-labelledby="docModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 id="docModalLabel" class="modal-title">Document preview 📄</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div id="modalDocMeta" class="mb-2 text-muted">No document loaded</div>
+            <div id="modalDocConsiderations" class="mb-2"></div>
+            <div id="modalDocViewer" class="doc-viewer" tabindex="0"></div>
+          </div>
+          <div class="modal-footer">
+            <p class="small text-muted mb-0 me-auto"> Document © with <a href="https://www.nubu.no/" target="_blank" rel="noopener noreferrer">NUBU — Nasjonalt utviklingssenter for barn</a></p>
+            <button id="modalShowAll" class="btn btn-sm btn-outline-secondary" disabled>Show all</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Auth modal: prompt for API key on first visit -->
+    <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 id="authModalLabel" class="modal-title">Enter API Key 🔒</h5>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label for="apiKeyInput" class="form-label">API Key / Password</label>
+              <div class="input-group">
+                <input id="apiKeyInput" type="password" class="form-control" placeholder="Enter API key" />
+                <button class="btn btn-outline-secondary" type="button" id="toggleApiKey" title="Show API key">Show</button>
+              </div>
+            </div>
+            <div id="authHelp" class="text-danger small mt-2" role="alert" aria-live="polite"></div>
+            <div class="form-text">This will be stored in your browser's <code>localStorage</code> and sent as <code>X-API-Key</code> on requests.</div>
+            <div class="form-text">Need a key? Contact <a href="mailto:sushant@simula.no">sushant@simula.no</a> to request access.<br> Or <a href="https://www.sushant.info.np/#:~:text=Get%20in%20touch" target="_blank" rel="noopener noreferrer">Get in touch with Sushant Gautam</a>.</div>
+          </div>
+          <div class="modal-footer">
+            <button id="saveApiKey" class="btn btn-primary">Save</button>
+            <button id="useNoKey" class="btn btn-outline-secondary">Continue without key</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Minimal JS: use fetch -->
+    <script>
+      const form = document.getElementById('queryForm');
+      const scenario = document.getElementById('scenario');
+      const results = document.getElementById('results');
+      const modalDocViewer = document.getElementById('modalDocViewer');
+      const modalDocMeta = document.getElementById('modalDocMeta');
+      const modalShowAll = document.getElementById('modalShowAll');
+      const docModalEl = document.getElementById('docModal');
+      const docModal = docModalEl ? new bootstrap.Modal(docModalEl) : null;
+      const runBtn = document.getElementById('runBtn');
+      // Preserve original Run button text so Clear can restore it immediately
+      const originalRunBtnText = runBtn ? runBtn.textContent : 'Run';
+
+      let currentDoc = null; // {file, start, end, total}
+      let currentFetchController = null;
+      let isRunning = false;
+
+      // --- API key management ---
+      const API_KEY_STORAGE = 'agent_api_key';
+      function getApiKey(){ return localStorage.getItem(API_KEY_STORAGE); }
+      function setApiKey(v){ if(!v) localStorage.removeItem(API_KEY_STORAGE); else localStorage.setItem(API_KEY_STORAGE, v); updateAuthUI(); }
+      function updateAuthUI(){ const btn = document.getElementById('manageKeyBtn'); if(!btn) return; const v = getApiKey(); btn.textContent = v ? 'Manage API Key' : 'Enter API Key'; btn.className = v ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline-primary'; }
+      function showAuthModal(){ const el = document.getElementById('authModal'); if(el) new bootstrap.Modal(el, {backdrop:'static', keyboard:false}).show(); }
+      
+      // Promise used to coordinate a single user prompt for 401 failures
+      let _authPromise = null; let _authResolve = null;
+      function promptForKey(message){ const help = document.getElementById('authHelp'); if(help) help.textContent = message || ''; const input = document.getElementById('apiKeyInput'); if(input){ input.value = getApiKey()||''; input.type = 'password'; } showAuthModal(); if(_authPromise) return _authPromise; _authPromise = new Promise((resolve)=>{ _authResolve = resolve; }); return _authPromise; }
+
+      document.addEventListener('DOMContentLoaded', ()=>{
+        const manage = document.getElementById('manageKeyBtn');
+        if(manage){ manage.addEventListener('click', ()=>{ const input = document.getElementById('apiKeyInput'); if(input){ input.value = getApiKey()||''; input.type = 'password'; } new bootstrap.Modal(document.getElementById('authModal')).show(); }); }
+
+        document.getElementById('saveApiKey').addEventListener('click', ()=>{ const v = document.getElementById('apiKeyInput').value.trim(); if(!v){ alert('Please enter a key or choose "Continue without key"'); return; } setApiKey(v); bootstrap.Modal.getInstance(document.getElementById('authModal')).hide(); if(_authResolve){ _authResolve(true); _authResolve=null; _authPromise=null; } const h = document.getElementById('authHelp'); if(h) h.textContent = ''; });
+        document.getElementById('useNoKey').addEventListener('click', ()=>{ setApiKey(null); bootstrap.Modal.getInstance(document.getElementById('authModal')).hide(); if(_authResolve){ _authResolve(false); _authResolve=null; _authPromise=null; } const h = document.getElementById('authHelp'); if(h) h.textContent = ''; });
+
+        // Toggle visibility for API key input
+        const toggleBtn = document.getElementById('toggleApiKey');
+        if(toggleBtn){
+          toggleBtn.addEventListener('click', ()=>{
+            const input = document.getElementById('apiKeyInput');
+            if(!input) return;
+            if(input.type === 'password'){ input.type = 'text'; toggleBtn.textContent = 'Hide'; toggleBtn.title = 'Hide API key'; }
+            else { input.type = 'password'; toggleBtn.textContent = 'Show'; toggleBtn.title = 'Show API key'; }
+          });
+        }
+
+        // clear help when modal hidden
+        const modalEl = document.getElementById('authModal'); if(modalEl) modalEl.addEventListener('hidden.bs.modal', ()=>{ const h=document.getElementById('authHelp'); if(h) h.textContent=''; });
+
+        updateAuthUI();
+        // Prompt on first visit if no key stored
+        if(!getApiKey()) showAuthModal();
+      });
+
+      async function apiFetch(path, opts){
+        opts = opts || {}; opts.headers = opts.headers || {};
+        const key = getApiKey();
+        if(key){
+          // send both headers so server can accept either X-API-Key or Authorization: Bearer
+          opts.headers['x-api-key'] = key;
+          opts.headers['authorization'] = 'Bearer ' + key;
+        }
+        let res;
+        try{ res = await fetch(path, opts); }catch(e){ throw e; }
+        if(res.status !== 401) return res;
+        // 401: prompt user for a key and retry once
+        await promptForKey('Unauthorized — please enter a valid API key');
+        const newKey = getApiKey();
+        if(newKey){
+          opts.headers['x-api-key'] = newKey;
+          opts.headers['authorization'] = 'Bearer ' + newKey;
+        } else {
+          delete opts.headers['x-api-key'];
+          delete opts.headers['authorization'];
+        }
+        const retry = await fetch(path, opts);
+        if(retry.status === 401){ const h = document.getElementById('authHelp'); if(h) h.textContent = 'Key rejected — please try again.'; showAuthModal(); }
+        return retry;
+      }
+
+      function renderResults(data){
+        // clear target containers
+        const resultsEl = document.getElementById('results');
+        const leftTop = document.getElementById('leftTop');
+        const rightTop = document.getElementById('rightTop');
+        const consEl = document.getElementById('considerationsContainer');
+        const relatedEl = document.getElementById('relatedQAs');
+        const areasEl = document.getElementById('planAreas');
+        const queriesEl = document.getElementById('planQueries');
+        const searchPlanSection = document.getElementById('searchPlanSection');
+        // hide search plan until we know one is available for this result
+        if(searchPlanSection) searchPlanSection.classList.add('d-none');
+        if(resultsEl) resultsEl.innerHTML = '';
+        if(consEl) consEl.innerHTML = '';
+        if(relatedEl) relatedEl.innerHTML = '';
+        if(areasEl) areasEl.innerHTML = '';
+        if(queriesEl) queriesEl.innerHTML = '';
+        // Remove any previously rendered result cards to avoid duplicates when running multiple queries
+        if(leftTop) leftTop.querySelectorAll('.result-card').forEach(n => n.remove());
+        if(rightTop) rightTop.querySelectorAll('.result-card').forEach(n => n.remove());
+
+        // scenario (left column)
+        if(data.scenario){
+          const scenarioText = (typeof data.scenario === 'string') ? data.scenario : (data.scenario.name || '');
+          if(scenarioText && String(scenarioText).trim()){
+            const card = document.createElement('div'); card.className='card result-card';
+            const body = document.createElement('div'); body.className='card-body';
+            body.innerHTML = `<h6 class="card-title">Scenario</h6><p>${escapeHtml(scenarioText)}</p>`;
+            card.appendChild(body);
+            if(leftTop) leftTop.insertBefore(card, consEl);
+          }
+        }
+
+        // considerations (left column)
+        if(Array.isArray(data.considerations) && data.considerations.length){
+          const card = document.createElement('div'); card.className='card result-card';
+          const body = document.createElement('div'); body.className='card-body';
+          body.innerHTML = `<h6 class="card-title">Considerations</h6>`;
+          const list = document.createElement('div');
+          data.considerations.forEach(c => {
+            const el = document.createElement('div');
+            el.className = 'mb-2 p-2 consideration-item';
+            el.dataset.consId = c.id || '';          el.dataset.bullet = c.bullet || '';            el.innerHTML = `<strong>${escapeHtml(c.id || '')}</strong> — ${escapeHtml(c.bullet || '')}`;
+            // allow clicking a consideration to highlight it
+            el.addEventListener('click', ()=>{ highlightConsideration(c.id); });
+            if(c.supporting_chunks && c.supporting_chunks.length){
+              const ul = document.createElement('div'); ul.className='mt-1';
+              c.supporting_chunks.forEach(sc => {
+                const parsed = parseSupportingChunk(sc);
+                const link = document.createElement('a');
+                link.className='support-link';
+                link.textContent = sc;
+                link.href = '#';
+                link.dataset.file = parsed.file;
+                link.dataset.start = parsed.start;
+                link.dataset.end = parsed.end;
+                link.addEventListener('click', (ev)=>{
+                  ev.preventDefault();
+                  loadDocumentAndHighlight(parsed.file, parsed.start, parsed.end);
+                })
+                ul.appendChild(link);
+                ul.appendChild(document.createElement('br'));
+              })
+              el.appendChild(ul);
+            }
+            list.appendChild(el);
+          });
+          body.appendChild(list); card.appendChild(body); if(consEl) consEl.appendChild(card);
+        }
+
+        // qa_pairs (right column)
+        if(Array.isArray(data.qa_pairs) && data.qa_pairs.length){
+          const card = document.createElement('div'); card.className='card result-card';
+          const body = document.createElement('div'); body.className='card-body';
+          body.innerHTML = `<h6 class="card-title">Related Q&As</h6>`;
+          // Use a Bootstrap list-group for clear separators between Q&A items
+          const list = document.createElement('div'); list.className = 'list-group';
+          data.qa_pairs.forEach((q, idx) => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item';
+            item.innerHTML = `<div class="mb-1"><strong class="text-muted">Q:</strong> ${escapeHtml(q.question || '')}</div><div><strong class="text-muted">A:</strong> ${escapeHtml(q.answer || '')}</div>`;
+            // add linked consideration labels if present
+            if(Array.isArray(q.linked_consideration_ids) && q.linked_consideration_ids.length){
+              const labels = document.createElement('div'); labels.className = 'mt-2';
+              q.linked_consideration_ids.forEach(id => {
+                const a = document.createElement('a');
+                a.href = '#';
+                a.className = 'badge bg-info text-dark me-1 cons-link';
+                a.textContent = id;
+                a.dataset.consId = id;
+                a.addEventListener('click', (ev)=>{ ev.preventDefault(); highlightConsideration(id); });
+                labels.appendChild(a);
+              });
+              // small caption
+              const caption = document.createElement('div'); caption.className='small text-muted mt-1'; caption.textContent = '';
+              item.appendChild(labels); item.appendChild(caption);
+            }
+            list.appendChild(item);
+          });
+          body.appendChild(list);
+          card.appendChild(body); if(relatedEl) relatedEl.appendChild(card);
+        }
+
+        // search_plan: split into areas (left) and queries (right)
+        if(data.search_plan){
+          const sp = data.search_plan;
+          if(searchPlanSection) searchPlanSection.classList.remove('d-none');
+          // Areas
+          if(Array.isArray(sp.areas) && sp.areas.length){
+            const card = document.createElement('div'); card.className='card result-card';
+            const body = document.createElement('div'); body.className='card-body';
+            body.innerHTML = `<h6 class="card-title">Areas</h6>`;
+            const ul = document.createElement('div');
+            sp.areas.forEach(a => {
+              const span = document.createElement('span');
+              span.className = 'badge bg-primary me-1 mb-1';
+              span.textContent = (typeof a === 'string') ? a : JSON.stringify(a);
+              ul.appendChild(span);
+            });
+            body.appendChild(ul); card.appendChild(body); if(areasEl) areasEl.appendChild(card);
+          }
+          // Queries
+          if(Array.isArray(sp.queries) && sp.queries.length){
+            const card = document.createElement('div'); card.className='card result-card';
+            const body = document.createElement('div'); body.className='card-body';
+            body.innerHTML = `<h6 class="card-title">Queries</h6>`;
+            const ul = document.createElement('div');
+            sp.queries.forEach(q => {
+              const span = document.createElement('span');
+              span.className = 'badge bg-secondary me-1 mb-1';
+              span.textContent = (typeof q === 'string') ? q : JSON.stringify(q);
+              ul.appendChild(span);
+            });
+            body.appendChild(ul); card.appendChild(body); if(queriesEl) queriesEl.appendChild(card);
+          }
+          // fallback: otherwise show full plan json in results
+          if(!sp.areas && !sp.queries){
+            if(resultsEl) resultsEl.innerHTML = `<pre>${escapeHtml(JSON.stringify(sp, null, 2))}</pre>`;
+          }
+        }
+      }
+
+      function parseSupportingChunk(sc){
+        // expected formats: "FILENAME|Lstart-end" or "FILENAME|L1234-1238" or "FILENAME|L1234"
+        const parts = sc.split('|');
+        const file = (parts[0] || '').trim() + (parts[0] && parts[0].toLowerCase().endsWith('.md') ? '' : '.md');
+        let start=null,end=null;
+        if(parts[1]){
+          const m = parts[1].match(/L?(\d+)(?:-(\d+))?/);
+          if(m){ start = parseInt(m[1],10); end = m[2] ? parseInt(m[2],10) : start; }
+        }
+        return {file, start, end};
+      }
+
+      function renderDocumentTo(viewer, lines, meta){
+        viewer.innerHTML = '';
+        lines.forEach(l => {
+          const div = document.createElement('div');
+          div.className='line clickable-line';
+          div.dataset.line = l.line_no;
+          div.innerHTML = `<span class="line-number">${String(l.line_no).padStart(4,' ')}</span><span class="line-text">${escapeHtml(l.text)}</span>`;
+          div.addEventListener('click', (ev)=>{
+            // toggle highlight
+            const already = div.classList.contains('highlight');
+            document.querySelectorAll('.line.highlight').forEach(x=>x.classList.remove('highlight'));
+            if(!already) div.classList.add('highlight');
+            // highlight corresponding supporting links
+            highlightSupportLinks(meta.file, l.line_no);
+          });
+          // if this line is in requested range, mark it
+          const s = meta.start, e = meta.end;
+          if(l.line_no >= s && l.line_no <= e) div.classList.add('support-highlight');
+          viewer.appendChild(div);
+        });
+        // focus viewer for keyboard
+        viewer.focus();
+      }
+
+      function renderDocument(lines, meta){
+        // default to modal viewer
+        renderDocumentTo(modalDocViewer, lines, meta);
+      }
+
+      function highlightSupportLinks(file, line_no){
+        // find all support links that reference this file and line; if line falls in range, highlight them
+        document.querySelectorAll('.support-link').forEach(a=>{
+          if(!a.dataset.file) return;
+          const af = a.dataset.file;
+          const s = parseInt(a.dataset.start||0,10);
+          const e = parseInt(a.dataset.end||0,10)||s;
+          if(af === file && line_no >= s && line_no <= e){
+            a.classList.add('support-highlight');
+            // scroll to the containing card
+            a.scrollIntoView({behavior:'smooth', block:'center'});
+            setTimeout(()=> a.classList.remove('support-highlight'), 3000);
+          }
+        })
+      }
+
+      function highlightConsideration(id){
+        // remove any previous highlights
+        document.querySelectorAll('.consideration-item.cons-highlight').forEach(x=>x.classList.remove('cons-highlight'));
+        const el = document.querySelector(`.consideration-item[data-cons-id="${id}"]`);
+        if(el){
+          el.classList.add('cons-highlight');
+          el.scrollIntoView({behavior:'smooth', block:'center'});
+          setTimeout(()=> el.classList.remove('cons-highlight'), 3000);
+        } else {
+          // flash the container so the user knows the id wasn't found
+          const container = document.getElementById('considerationsContainer');
+          if(container){ container.classList.add('cons-flash'); setTimeout(()=> container.classList.remove('cons-flash'), 1000); }
+        }
+        // also flash any support links inside that consideration
+        document.querySelectorAll('.support-link').forEach(a=>{
+          const parentCons = a.closest('.consideration-item');
+          if(parentCons && parentCons.dataset.consId === id){
+            a.classList.add('support-highlight');
+            setTimeout(()=> a.classList.remove('support-highlight'), 2000);
+          }
+        });
+      }
+
+      function renderModalConsiderations(file, start, end){
+        const target = document.getElementById('modalDocConsiderations');
+        if(!target) return;
+        target.innerHTML = '';
+        const matches = [];
+        document.querySelectorAll('.consideration-item').forEach(cEl=>{
+          const consId = cEl.dataset.consId;
+          const bullet = cEl.dataset.bullet || '';
+          const links = cEl.querySelectorAll('.support-link');
+          links.forEach(a=>{
+            if(!a.dataset.file) return;
+            if(a.dataset.file === file){
+              const s = parseInt(a.dataset.start||0,10);
+              const e = parseInt(a.dataset.end||s,10);
+              // check overlap
+              if(!(end < s || start > e)){
+                matches.push({id: consId, bullet});
+              }
+            }
+          })
+        });
+        if(matches.length){
+          const title = document.createElement('div'); title.className='small text-muted mb-1'; title.textContent='Considerations:';
+          target.appendChild(title);
+          matches.forEach(m=>{
+            const d = document.createElement('div'); d.className='small mb-1';
+            d.innerHTML = `<strong>${escapeHtml(m.id||'')}</strong> — ${escapeHtml(m.bullet||'')}`;
+            d.addEventListener('click', ()=>{ highlightConsideration(m.id); });
+            target.appendChild(d);
+          });
+        } else {
+          target.innerHTML = '<div class="small text-muted">No considerations for this page.</div>';
+        }
+      }
+
+      async function loadDocumentAndHighlight(file, start, end){
+        // fetch a small window around start/end for performance
+        const docs = await apiFetch(`/doc_content?file=${encodeURIComponent(file)}&start=${start || 1}&end=${end || (start||1)+60}`).then(r=>r.json());
+        currentDoc = {file: docs.file, start: docs.start, end: docs.end, total: docs.total_lines};
+        renderDocumentTo(modalDocViewer, docs.lines, docs);
+        modalDocMeta.textContent = `${docs.file} — lines ${docs.start}–${docs.end} (total ${docs.total_lines})`;
+        modalShowAll.disabled = false;
+        modalShowAll.onclick = ()=> apiFetch(`/doc_content?file=${encodeURIComponent(docs.file)}`).then(r=>r.json()).then(d=>{ renderDocumentTo(modalDocViewer, d.lines,d); modalDocMeta.textContent = `${d.file} — lines ${d.start}–${d.end} (total ${d.total_lines})`; });
+        // populate modal considerations (if any) and show the modal reliably
+        try { renderModalConsiderations(docs.file, docs.start, docs.end); } catch(e) { /* noop */ }
+        try {
+          const inst = docModal || (document.getElementById('docModal') ? new bootstrap.Modal(document.getElementById('docModal')) : null);
+          if(inst){
+            // allow the browser to paint the rendered content first
+            setTimeout(()=> inst.show(), 0);
+          }
+        } catch(e) { console.warn('Failed to show document modal', e); }
+      }
+
+      // form submit
+      form.addEventListener('submit', async (ev)=>{
+        ev.preventDefault();
+        if(isRunning) return;
+        const value = scenario.value.trim();
+        if(!value) return;
+        isRunning = true;
+        runBtn.disabled = true;
+        const originalText = runBtn.textContent;
+        runBtn.textContent = 'Running...';
+        // Clear previous preview immediately so the UI shows only the loader while fetching
+        const consEl = document.getElementById('considerationsContainer'); if(consEl) consEl.innerHTML='';
+        const relatedEl = document.getElementById('relatedQAs'); if(relatedEl) relatedEl.innerHTML='';
+        const areasEl = document.getElementById('planAreas'); if(areasEl) areasEl.innerHTML='';
+        const queriesEl = document.getElementById('planQueries'); if(queriesEl) queriesEl.innerHTML='';
+        const leftTop = document.getElementById('leftTop'); if(leftTop) leftTop.querySelectorAll('.result-card').forEach(n => n.remove());
+        const rightTop = document.getElementById('rightTop'); if(rightTop) rightTop.querySelectorAll('.result-card').forEach(n => n.remove());
+        const searchPlanSection = document.getElementById('searchPlanSection'); if(searchPlanSection) searchPlanSection.classList.add('d-none');
+        if(docModal) docModal.hide();
+        if(modalDocViewer) modalDocViewer.innerHTML='';
+        if(modalDocMeta) modalDocMeta.textContent='No document loaded';
+        if(modalShowAll) modalShowAll.disabled = true;
+        currentDoc = null;
+        results.innerHTML = '<div class="loader-container"><img src="https://abit.bt/wp-content/uploads/2019/02/server.gif" alt="Loading..." class="loader-img" tabindex="-1" aria-hidden="true" /></div>';
+        const controller = new AbortController();
+        currentFetchController = controller;
+        try{
+          const res = await apiFetch('/query', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({scenario: value}), signal: controller.signal});
+          if(!res.ok){
+            // Try to surface a helpful message from the response body (JSON or text)
+            let bodyText = '';
+            try{
+              const ct = res.headers.get('content-type') || '';
+              if(ct.includes('application/json')){
+                const json = await res.json();
+                bodyText = json.error || json.message || JSON.stringify(json);
+              } else {
+                bodyText = await res.text();
+              }
+            }catch(e){
+              bodyText = res.statusText || `Status ${res.status}`;
+            }
+            results.innerHTML = `<div class="alert alert-danger"><strong>Error:</strong> ${escapeHtml(bodyText || String(res.status))}</div>`;
+            return;
+          }
+          const data = await res.json();
+          renderResults(data);
+        }catch(err){
+          if(err.name === 'AbortError'){
+            results.innerHTML = `<div class="alert alert-warning">Request aborted.</div>`;
+          }else{
+            results.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message)}</div>`;
+          }
+        }finally{
+          isRunning = false;
+          currentFetchController = null;
+          runBtn.disabled = false;
+          runBtn.textContent = originalText;
+        }
+      })
+
+      document.getElementById('clearBtn').addEventListener('click', ()=>{
+        // abort ongoing request if any
+        if(currentFetchController){
+          currentFetchController.abort();
+          currentFetchController = null;
+        }
+        // immediately reset run state so the user can start another run without waiting
+        isRunning = false;
+        if(runBtn){ runBtn.disabled = false; runBtn.textContent = originalRunBtnText; }
+        // reset UI
+        const resultsEl = document.getElementById('results'); if(resultsEl) resultsEl.innerHTML='';
+        const consEl = document.getElementById('considerationsContainer'); if(consEl) consEl.innerHTML='';
+        const relatedEl = document.getElementById('relatedQAs'); if(relatedEl) relatedEl.innerHTML='';
+        const areasEl = document.getElementById('planAreas'); if(areasEl) areasEl.innerHTML='';
+        const queriesEl = document.getElementById('planQueries'); if(queriesEl) queriesEl.innerHTML='';
+        // Also remove any previously rendered result cards (e.g., Scenario card)
+        const leftTop = document.getElementById('leftTop'); if(leftTop) leftTop.querySelectorAll('.result-card').forEach(n => n.remove());
+        const rightTop = document.getElementById('rightTop'); if(rightTop) rightTop.querySelectorAll('.result-card').forEach(n => n.remove());
+        // hide search plan section
+        const searchPlanSection = document.getElementById('searchPlanSection'); if(searchPlanSection) searchPlanSection.classList.add('d-none');
+        scenario.value='';
+        if(docModal) docModal.hide();
+        modalDocViewer.innerHTML='';
+        modalDocMeta.textContent='No document loaded';
+        modalShowAll.disabled=true;
+        currentDoc=null;
+      });
+
+      function escapeHtml(str){ return String(str||'').replace(/[&<>"'`]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':'&#96;'})[s]); }
+    </script>
+
+    <!-- Footer -->
+    <footer class="mt-4 pt-3 border-top">
+      <div class="row">
+        <div class="col-12 col-md-6">
+          <p class="mb-1"><a href="https://www.simulamet.no/" target="_blank" rel="noopener noreferrer">Simula Metropolitan Center for Digital Engineering</a></p>
+          <p class="small text-muted mb-0">System © 2026 SimulaMet</p>
+        </div>
+        <div class="col-12 col-md-6">
+          <p class="mb-1"><a href="https://www.simula.no/" target="_blank" rel="noopener noreferrer">Simula Research Laboratory</a></p>
+          <p class="mb-1"><a href="https://www.nora.ai/" target="_blank" rel="noopener noreferrer">NORA – Norwegian Artificial Intelligence Research Consortium</a></p>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
