@@ -75,15 +75,11 @@ class _AuthMiddleware(BaseHTTPMiddleware):
         if request.url.path.startswith("/static") or request.url.path in ("/openapi.json", "/docs", "/redoc", "/preview"):
             return await call_next(request)
 
-        # Allow explicitly-decorated public endpoints (use @public_endpoint)
+        # Allow explicitly-decorated public endpoints (use @public_endpoint) when available
         endpoint = request.scope.get("endpoint")
-        # If routing hasn't set the endpoint yet, defer authentication to route-level dependencies
-        if endpoint is None:
-            return await call_next(request)
-        if getattr(endpoint, "_public", False):
+        if endpoint is not None and getattr(endpoint, "_public", False):
             return await call_next(request)
 
-        # Look for key in X-API-Key or Authorization header
         key = request.headers.get("x-api-key") or request.headers.get("authorization")
         key = _extract_key(key)
         if not _is_valid_key(key):
@@ -201,6 +197,8 @@ def public_endpoint(func):
 async def doc_content(file: str = Query(..., description="Filename (with or without .md)"), start: Optional[int] = None, end: Optional[int] = None):
     """Return file content as numbered lines and optionally a slice (1-indexed inclusive)."""
     # Sanitize file name and enforce .md
+    if file.startswith("chunk_id="):
+        file = file[len("chunk_id="):]
     base = os.path.basename(file)
     if not base.lower().endswith(".md"):
         base = base + ".md"
@@ -274,4 +272,4 @@ _attach_auth_dependency()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("agent_server:app", host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run("agent_server:app", host="0.0.0.0", port=8005, reload=False)

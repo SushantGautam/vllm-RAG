@@ -473,7 +473,7 @@ embeddings = OpenAIEmbeddings(base_url=embedding_base_url, model=embed_model)
 vectorstore = Milvus(
         embedding_function=embeddings,
         collection_name="rag_collection",
-        connection_args={"uri": "./milvus_demo.db"},
+        connection_args={"uri": os.getenv("MILVUS_DB")},
         # ✅ Add BM25 sparse field
         builtin_function=BM25BuiltInFunction(output_field_names="sparse"),
         index_params=[
